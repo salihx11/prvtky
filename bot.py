@@ -23,15 +23,15 @@ WEBAPP_URL = "https://coinspark.pro/kyc/index.php"
 
 # Payment addresses
 PAYMENT_ADDRESSES = {
-    'usdt': 'TYXwVWkUJ1JZ2J8Z2J9Z2J0Z2J1Z2J2Z2J3Z2J4',
-    'btc': '3FZbgi29cpjq2GjdwV8eyHuJJnkLtktZc5',
-    'trx': 'TYXwVWkUJ1JZ2J8Z2J9Z2J0Z2J1Z2J2Z2J3Z2J4',
-    'ltc': 'LZXwVWkUJ1JZ2J8Z2J9Z2J0Z2J1Z2J2Z2J3Z2J4',
-    'usdc': '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
-    'sol': 'SOLwVWkUJ1JZ2J8Z2J9Z2J0Z2J1Z2J2Z2J3Z2J4',
-    'xmr': '48jewbtxe4jU3MnzJjcv8Bwto2898fZhqWXdC92BQo4rHZxP1J1JZ2J8Z2J9Z2J0Z2J1Z2J2Z2J3Z2J4',
-    'bnb': 'bnb1v8vkkymvhe2sm7h2ej9vt9h4wv3j8vkj9j4h4w',
-    'ton': 'EQCD39VS5jcptHL8vMjEXrzGaRcCVYto7HUn4bpAOg8xqB2N'
+    'usdt': 'TM252nTSTo62q3JwTbeH9qPwSbbrXUrnF8',
+    'btc': 'bc1qlmt2hlyxvqk9dwmlywvpj6emu6rpdp57gpn5vn',
+    'trx': 'TM252nTSTo62q3JwTbeH9qPwSbbrXUrnF8',
+    'ltc': 'ltc1qlmt2hlyxvqk9dwmlywvpj6emu6rpdp57vafs5r',
+    'usdc': '0x7933Fa706A842ca6e2E3DB300b1789e5BC8516d1',
+    'sol': 'Bsam7cG6Y7Gwevdwjkp1kSccXZSExdswL7U93P1P5Zr9',
+    'xmr': '41pb6PDhkACAJ1oS7N7RYdgoNFtGjwwDQRxME75786Jh9hAdu7TYvtK4xbUZWqL5wBNiEnVcbaaopB6AdZfQvMaKFr37WcT',
+    'bnb': '0x7933Fa706A842ca6e2E3DB300b1789e5BC8516d1',
+    'ton': 'EQAj7vKLbaWjaNbAuAKP1e1HwmdYZ2vJ2xtWU8qq3JafkfxF'
 }
 
 MIN_AMOUNTS = {
