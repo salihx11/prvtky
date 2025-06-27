@@ -16,7 +16,7 @@ from telegram.ext import (
 
 # Constants
 BOT_TOKEN = '7937591717:AAENsuVdvNbmnjnewIhhCk0Rtgv79dz3Mg8'
-ADMIN_ID = 7017391282
+ADMIN_ID = 1362321291
 NOWPAYMENTS_API_KEY = 'BJMQ1ZZ-K8JMX4G-GY0EP0N-V210854'
 KYC_PRICE = 20  # Fixed price for KYC verification
 WEBAPP_URL = "https://coinspark.pro/kyc/index.php"
@@ -106,7 +106,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("📜 History", callback_data='history')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    text = "🥳 Welcome to the @Fragmentkyc_bot - We provide fragment KYC verification services with fast, secure, and professional handling. Get your KYC done perfectly for just $20. Stay updated at @Fkyc_chanel."
+    text = "🥳 Welcome to the @Fragmentkyc_bot - We provide fragment KYC verification services with fast, secure, and professional handling. Get your KYC done perfectly for just $20. Stay updated at https://t.me/+aCgDI5nDudpkZDQ1."
     
     if update.message:
         await update.message.reply_text(text, reply_markup=reply_markup)
@@ -138,7 +138,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         elif query.data == "deposit":
             deposit_menu = {
-                'text': "💎 Choose your payment method (Minimum $5 USD equivalent):",
+                'text': "💎 Choose your payment method (Minimum $20 USD equivalent):",
                 'reply_markup': [
                     [InlineKeyboardButton("USDT (TRC20)", callback_data='pay_usdt'), 
                      InlineKeyboardButton("BTC (Bitcoin)", callback_data='pay_btc')],
