@@ -40,7 +40,7 @@ payment_check_attempts = {}  # Track payment check attempts
 vouches = {}
 
 # Popular cryptocurrencies including SOL and TRX
-POPULAR_CRYPTOS = ['btc', 'eth', 'usdt', 'usdc', 'xmr', 'ton', 'sol', 'trx']
+POPULAR_CRYPTOS = ['btc', 'eth', 'usdc', 'xmr', 'ton', 'sol', 'trx']
 
 def back_button():
     return InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="back")]])
