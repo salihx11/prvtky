@@ -3,3 +3,6 @@ requests>=2.28.1
 qrcode>=7.4.2
 Pillow>=9.4.0
 python-dotenv>=0.21.0  # Optional but recommended for environment variables
+pip install "python-telegram-bot[job-queue]"
+python-telegram-bot[job-queue]==20.7
+aiohttp
