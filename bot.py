@@ -612,7 +612,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             await context.bot.send_message(
                 chat_id=target_user_id,
-                text="🎉 Your KYC is complete! Thank you./start"
+                text="🎉 Your KYC is complete! Thank you."
             )
 
         elif query.data == "back":
