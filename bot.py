@@ -14,7 +14,7 @@ from telegram.ext import (
 )
 
 # Constants
-BOT_TOKEN = '7937591717:AAENsuVdvNbmnjnewIhhCk0Rtgv79dz3Mg8'
+BOT_TOKEN = '8159237939:AAHX8Z-WcTVHTYf78W3FVv7_3vtxSeHtep0'
 ADMIN_ID = 1362321291
 NOWPAYMENTS_API_KEY = 'BJMQ1ZZ-K8JMX4G-GY0EP0N-V210854'
 KYC_PRICE = 20
@@ -165,8 +165,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("📜 History", callback_data='history')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    text = """Welcome to the @Fragmentkyc_bot We provide fragment KYC verification services with fast, secure, and professional handling. Get your KYC done perfectly for just $20. Stay updated at https://t.me/+aCgDI5nDudpkZDQ1."""
-    
+    text = """👋 Welcome to @Fragmentkycxbot - a fast, secure, and affordable Fragment KYC service trusted by 100+ users. Start now and get verified in minutes. Support: @Fragkycsupportbot Reviews :
+@knowurcustomer"""
     if update.message:
         await update.message.reply_text(text, reply_markup=reply_markup)
     elif update.callback_query:
