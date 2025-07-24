@@ -436,7 +436,7 @@ Thank you for your payment!
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔄 Check Again", callback_data=f'check_{payment_id}')],
                 [InlineKeyboardButton(f"{THEME['warning']} Back", callback_data='deposit')]
-            )
+            ])
         )
         
         await query.answer(
@@ -571,7 +571,7 @@ We'll guide you through the entire process.
             text=f"💬 User @{username} ({user_id}) started a chat",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton(f"{THEME['support']} Reply", callback_data=f"chat_{user_id}")]
-            )
+            ])
         )
     elif query.data.startswith("chat_"):
         if query.from_user.id != ADMIN_ID:
@@ -585,7 +585,7 @@ We'll guide you through the entire process.
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton(f"{THEME['success']} Complete Order", callback_data=f"done_{target_user_id}")],
                 [InlineKeyboardButton(f"{THEME['warning']} End Chat", callback_data=f"endchat_{target_user_id}")]
-            )
+            ])
         )
         
         await context.bot.send_message(
