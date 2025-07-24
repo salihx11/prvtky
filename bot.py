@@ -823,7 +823,6 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("endchat", end_chat))
     application.add_handler(CommandHandler("vouch", vouch_command))
-    application.add_handler(CommandHandler("addbalance", add_balance))
     application.add_handler(CommandHandler("broadcast", broadcast))
     application.add_handler(CommandHandler("confirmbroadcast", confirm_broadcast))
     application.add_handler(CommandHandler("cancelbroadcast", cancel_broadcast))
