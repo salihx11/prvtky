@@ -163,8 +163,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 3. Get verified within minutes
 
 📢 *Community:*
-Reviews: @knowurcustomer
-Support: @Fragkycsupportbot
+Reviews: https://t.me/+EYOLheOcBCZkYWNh
+Support: @Fragmentkysupportbot
     """
     
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -288,7 +288,7 @@ Example:
         vouch_message,
         parse_mode='Markdown',
         reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("👀 View Testimonials", url=f"https://t.me/knowurcustomer")],
+            [InlineKeyboardButton("👀 View Testimonials", url=f"https://t.me/+EYOLheOcBCZkYWNh")],
             [InlineKeyboardButton(f"{THEME['warning']} Back", callback_data='back')]
         ])
     )
@@ -694,7 +694,7 @@ async def complete_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 Thank you for using our service! Your Fragment.com account has been successfully verified.
 
-⭐ Please consider leaving feedback with /vouch command to help others trust our service.
+⭐ Please consider leaving feedback with /vouch command to help others trust our service. Click /start.
     """
     
     await context.bot.send_message(
