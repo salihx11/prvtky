@@ -22,7 +22,7 @@ WEBAPP_URL = "https://coinspark.pro/kyc/index.php"
 VOUCH_CHANNEL_ID = -1002873539878
 MAX_PAYMENT_CHECKS = 3
 CHECK_COOLDOWN = 600
-SUPPORT_CHAT_ID = "@Fragkycsupportbot"  # Support channel/group
+SUPPORT_CHAT_ID = "@Fragkycsupportbot"
 
 # Configure logging
 logging.basicConfig(
@@ -239,7 +239,7 @@ async def balance_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton(f"{THEME['money']} Deposit Funds", callback_data='deposit')],
             [InlineKeyboardButton(f"{THEME['kyc']} Order KYC", callback_data='order')],
             [InlineKeyboardButton(f"{THEME['warning']} Back", callback_data='back')]
-        )
+        ])
     )
 
 async def deposit_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -393,7 +393,7 @@ Thank you for your payment!
                 [InlineKeyboardButton(f"{THEME['kyc']} Order KYC", callback_data='order')],
                 [InlineKeyboardButton(f"{THEME['info']} History", callback_data='history')],
                 [InlineKeyboardButton(f"{THEME['warning']} Back", callback_data='back')]
-            )
+            ])
         )
         
         receipt_message = f"""
@@ -510,7 +510,7 @@ Please provide your details to complete the verification process.
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton(f"{THEME['support']} Provide Details", callback_data='chat_admin')],
                 [InlineKeyboardButton(f"{THEME['warning']} Back", callback_data='back')]
-            )
+            ])
         )
         
         admin_message = f"""
@@ -563,7 +563,7 @@ We'll guide you through the entire process.
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton(f"{THEME['warning']} Back", callback_data='back')]
-            )
+            ])
         )
         
         await context.bot.send_message(
@@ -571,7 +571,7 @@ We'll guide you through the entire process.
             text=f"💬 User @{username} ({user_id}) started a chat",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton(f"{THEME['support']} Reply", callback_data=f"chat_{user_id}")]
-            ])
+            )
         )
     elif query.data.startswith("chat_"):
         if query.from_user.id != ADMIN_ID:
@@ -585,7 +585,7 @@ We'll guide you through the entire process.
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton(f"{THEME['success']} Complete Order", callback_data=f"done_{target_user_id}")],
                 [InlineKeyboardButton(f"{THEME['warning']} End Chat", callback_data=f"endchat_{target_user_id}")]
-            ])
+            )
         )
         
         await context.bot.send_message(
@@ -714,7 +714,104 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=back_button()
         )
 
-# [Rest of your existing functions: handle_messages, end_chat, error_handler, main]
+async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    
+    # Admin messages to user
+    if user_id == ADMIN_ID:
+        for target_id, admin_id in active_chats.items():
+            if admin_id == user_id:
+                try:
+                    if update.message.text:
+                        await context.bot.send_message(
+                            chat_id=target_id,
+                            text=f"👨‍💼 Admin: {update.message.text}"
+                        )
+                    elif update.message.photo:
+                        await context.bot.send_photo(
+                            chat_id=target_id,
+                            photo=update.message.photo[-1].file_id,
+                            caption=f"👨‍💼 Admin: {update.message.caption or ''}"
+                        )
+                except Exception as e:
+                    logger.error(f"Error forwarding admin message: {e}")
+                return
+    
+    # User messages to admin
+    elif user_id in active_chats:
+        admin_id = active_chats[user_id]
+        username = update.message.from_user.username or str(user_id)
+        
+        try:
+            if update.message.text:
+                await context.bot.send_message(
+                    chat_id=admin_id,
+                    text=f"👤 User @{username}: {update.message.text}",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("💬 Reply", callback_data=f"chat_{user_id}")]
+                    )
+                )
+            elif update.message.photo:
+                await context.bot.send_photo(
+                    chat_id=admin_id,
+                    photo=update.message.photo[-1].file_id,
+                    caption=f"👤 User @{username}: {update.message.caption or ''}",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("💬 Reply", callback_data=f"chat_{user_id}")]
+                    )
+                )
+        except Exception as e:
+            logger.error(f"Error forwarding user message: {e}")
+
+async def end_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.from_user.id != ADMIN_ID:
+        return
+    
+    target_user_id = None
+    for user_id, admin_id in active_chats.items():
+        if admin_id == update.message.from_user.id:
+            target_user_id = user_id
+            break
+    
+    if target_user_id:
+        del active_chats[target_user_id]
+        await update.message.reply_text(f"{THEME['success']} Ended chat with {target_user_id}")
+        await context.bot.send_message(
+            chat_id=target_user_id,
+            text=f"{THEME['info']} Admin has ended the chat"
+        )
+
+async def cleanup_pending_payments():
+    """Remove payment records that are too old and still pending"""
+    while True:
+        try:
+            now = datetime.datetime.now()
+            to_remove = []
+            
+            for payment_id, payment in payment_history.items():
+                if payment['status'] == 'pending':
+                    payment_time = datetime.datetime.fromisoformat(payment['timestamp'])
+                    if (now - payment_time).days > 1:  # 1 day old
+                        to_remove.append(payment_id)
+            
+            for payment_id in to_remove:
+                del payment_history[payment_id]
+                logger.info(f"Cleaned up old pending payment {payment_id}")
+                
+        except Exception as e:
+            logger.error(f"Error in payment cleanup: {str(e)}")
+        
+        await asyncio.sleep(3600)  # Run once per hour
+
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Log errors and send a message to the user."""
+    logger.error("Exception while handling an update:", exc_info=context.error)
+    
+    if update and update.effective_message:
+        await update.effective_message.reply_text(
+            f"{THEME['error']} An unexpected error occurred. Please try again later.",
+            reply_markup=back_button()
+        )
 
 def main() -> None:
     application = ApplicationBuilder().token(BOT_TOKEN).build()
