@@ -276,7 +276,7 @@ async def vouch_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 We value your feedback! Please share your experience with our KYC service.
 
-Your vouch will be posted in our community channel @knowurcustomer and helps others trust our service.
+Your vouch will be posted in our community channel https://t.me/+EYOLheOcBCZkYWNh and helps others trust our service.
 
 To leave feedback, use the /vouch command followed by your message:
 
@@ -694,7 +694,7 @@ async def complete_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 Thank you for using our service! Your Fragment.com account has been successfully verified.
 
-⭐ Please consider leaving feedback with /vouch command to help others trust our service. Click /start.
+⭐ Please consider leaving feedback with /vouch command to help others trust our service.Click /start.
     """
     
     await context.bot.send_message(
@@ -746,7 +746,7 @@ async def vouch_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"{THEME['success']} Thank you for your feedback!",
         reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton("👀 View Post", url=f"https://t.me/c/{str(VOUCH_CHANNEL_ID)[4:]}/{sent.message_id}")
+            InlineKeyboardButton("👀 View Post", url=f"https://t.me/c/{str(VOUCH_CHANNEL_ID)[4:]}/{sent.message_id} /start")
         ]])
     )
 
