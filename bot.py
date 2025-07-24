@@ -746,7 +746,7 @@ async def vouch_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"{THEME['success']} Thank you for your feedback!",
         reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton("👀 View Post", url=f"https://t.me/c/{str(VOUCH_CHANNEL_ID)[4:]}/{sent.message_id} /start")
+            InlineKeyboardButton("👀 View Post", url=f"https://t.me/c/{str(VOUCH_CHANNEL_ID)[4:]}/{sent.message_id}")
         ]])
     )
 
