@@ -749,7 +749,7 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     text=f"👤 User @{username}: {update.message.text}",
                     reply_markup=InlineKeyboardMarkup([
                         [InlineKeyboardButton("💬 Reply", callback_data=f"chat_{user_id}")]
-                    )
+                    ])
                 )
             elif update.message.photo:
                 await context.bot.send_photo(
@@ -758,7 +758,7 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     caption=f"👤 User @{username}: {update.message.caption or ''}",
                     reply_markup=InlineKeyboardMarkup([
                         [InlineKeyboardButton("💬 Reply", callback_data=f"chat_{user_id}")]
-                    )
+                    ])
                 )
         except Exception as e:
             logger.error(f"Error forwarding user message: {e}")
