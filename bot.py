@@ -319,7 +319,7 @@ Please complete your payment within 15 minutes.
             [InlineKeyboardButton("💳 Pay Now", url=invoice_data['invoice_url'])],
             [InlineKeyboardButton("🔄 Check Payment", callback_data=f'check_{payment_id}')],
             [InlineKeyboardButton(f"{THEME['warning']} Cancel", callback_data='deposit')]
-        )
+        ])
     )
 
 async def check_payment_status(payment_id):
