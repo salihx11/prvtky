@@ -119,7 +119,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [InlineKeyboardButton(f"{THEME['kyc']} Order KYC", callback_data='order')],
                 [InlineKeyboardButton(f"{THEME['money']} View Balance", callback_data='balance')],
                 [InlineKeyboardButton(f"{THEME['info']} History", callback_data='history')]
-            )
+            ])
         )
         return
     
