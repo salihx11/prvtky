@@ -210,7 +210,7 @@ Example:
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("👀 View Testimonials", url=f"https://t.me/knowurcustomer")],
             [InlineKeyboardButton(f"{THEME['warning']} Back", callback_data='back')]
-        )
+        ])
     )
 
 async def balance_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
