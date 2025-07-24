@@ -55,6 +55,18 @@ THEME = {
     "support": "🆘"
 }
 
+def admin_only(func):
+    """Decorator to restrict commands to admin only"""
+    async def wrapped(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if update.effective_user.id != ADMIN_ID:
+            await update.message.reply_text(
+                f"{THEME['error']} This command is restricted to admin only",
+                parse_mode='Markdown'
+            )
+            return
+        return await func(update, context)
+    return wrapped
+
 def back_button():
     return InlineKeyboardMarkup([[InlineKeyboardButton(f"{THEME['warning']} Back", callback_data="back")]])
 
@@ -160,6 +172,74 @@ Support: @Fragkycsupportbot
         await update.message.reply_text(welcome_message, reply_markup=reply_markup, parse_mode='Markdown')
     elif update.callback_query:
         await update.callback_query.edit_message_text(welcome_message, reply_markup=reply_markup, parse_mode='Markdown')
+
+@admin_only
+async def addbalance(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin command to add balance to a user's account"""
+    args = context.args
+    
+    if len(args) < 2:
+        await update.message.reply_text(
+            f"{THEME['error']} Usage: /addbalance <user_id> <amount> [currency=USD]",
+            parse_mode='Markdown'
+        )
+        return
+    
+    try:
+        user_id = int(args[0])
+        amount = float(args[1])
+        currency = args[2].upper() if len(args) > 2 else "USD"
+        
+        if amount <= 0:
+            await update.message.reply_text(
+                f"{THEME['error']} Amount must be positive",
+                parse_mode='Markdown'
+            )
+            return
+            
+        # Add to user's balance
+        user_balances[user_id] = user_balances.get(user_id, 0) + amount
+        
+        # Record the transaction
+        payment_id = f"admin_{datetime.datetime.now().timestamp()}"
+        payment_history[payment_id] = {
+            'user_id': user_id,
+            'amount': amount,
+            'currency': currency,
+            'status': 'completed',
+            'timestamp': datetime.datetime.now().isoformat(),
+            'admin_id': update.effective_user.id
+        }
+        
+        # Notify admin
+        await update.message.reply_text(
+            f"{THEME['success']} Successfully added *{amount} {currency}* to user *{user_id}*\n"
+            f"New balance: *{user_balances[user_id]:.2f} USD*",
+            parse_mode='Markdown'
+        )
+        
+        # Notify user if possible
+        try:
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=f"{THEME['success']} *Admin added {amount} {currency} to your balance*\n"
+                     f"New balance: *{user_balances[user_id]:.2f} USD*",
+                parse_mode='Markdown'
+            )
+        except Exception as e:
+            logger.warning(f"Could not notify user {user_id}: {str(e)}")
+            
+    except ValueError:
+        await update.message.reply_text(
+            f"{THEME['error']} Invalid arguments. Usage: /addbalance <user_id> <amount> [currency]",
+            parse_mode='Markdown'
+        )
+    except Exception as e:
+        logger.error(f"Error in addbalance: {str(e)}")
+        await update.message.reply_text(
+            f"{THEME['error']} An error occurred: {str(e)}",
+            parse_mode='Markdown'
+        )
 
 async def support_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -670,6 +750,84 @@ async def vouch_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]])
     )
 
+@admin_only
+async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin command to broadcast a message to all users"""
+    if not context.args:
+        await update.message.reply_text(
+            f"{THEME['error']} Usage: /broadcast <message>",
+            parse_mode='Markdown'
+        )
+        return
+    
+    message = " ".join(context.args)
+    broadcast_messages.append(message)
+    
+    await update.message.reply_text(
+        f"{THEME['info']} *Broadcast Preview*\n\n{message}\n\n"
+        f"Send /confirmbroadcast to send to all users or /cancelbroadcast to cancel",
+        parse_mode='Markdown',
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton(f"{THEME['success']} Confirm", callback_data="confirm_broadcast")],
+            [InlineKeyboardButton(f"{THEME['error']} Cancel", callback_data="cancel_broadcast")]
+        ])
+    )
+
+@admin_only
+async def confirm_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Confirm and send the broadcast message"""
+    if not broadcast_messages:
+        await update.message.reply_text(
+            f"{THEME['error']} No broadcast message pending",
+            parse_mode='Markdown'
+        )
+        return
+    
+    message = broadcast_messages[-1]
+    sent_count = 0
+    failed_count = 0
+    
+    # Get all unique user IDs from various sources
+    user_ids = set()
+    user_ids.update(user_balances.keys())
+    user_ids.update(payment_history.keys())
+    user_ids.update(pending_orders.keys())
+    
+    for user_id in user_ids:
+        try:
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=f"📢 *Announcement*\n\n{message}",
+                parse_mode='Markdown'
+            )
+            sent_count += 1
+            await asyncio.sleep(0.1)  # Rate limiting
+        except Exception as e:
+            logger.warning(f"Failed to send broadcast to {user_id}: {str(e)}")
+            failed_count += 1
+    
+    broadcast_messages.clear()
+    await update.message.reply_text(
+        f"{THEME['success']} Broadcast sent to {sent_count} users. {failed_count} failed.",
+        parse_mode='Markdown'
+    )
+
+@admin_only
+async def cancel_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Cancel the pending broadcast"""
+    if not broadcast_messages:
+        await update.message.reply_text(
+            f"{THEME['error']} No broadcast message pending",
+            parse_mode='Markdown'
+        )
+        return
+    
+    broadcast_messages.clear()
+    await update.message.reply_text(
+        f"{THEME['success']} Broadcast cancelled",
+        parse_mode='Markdown'
+    )
+
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -706,6 +864,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 chat_id=target_user_id,
                 text=f"{THEME['info']} Admin has ended the chat"
             )
+        elif query.data == "confirm_broadcast":
+            await confirm_broadcast(update, context)
+        elif query.data == "cancel_broadcast":
+            await cancel_broadcast(update, context)
             
     except Exception as e:
         logger.error(f"Error in button handler: {str(e)}")
@@ -826,6 +988,7 @@ def main() -> None:
     application.add_handler(CommandHandler("broadcast", broadcast))
     application.add_handler(CommandHandler("confirmbroadcast", confirm_broadcast))
     application.add_handler(CommandHandler("cancelbroadcast", cancel_broadcast))
+    application.add_handler(CommandHandler("addbalance", addbalance))
     
     # Callback and message handlers
     application.add_handler(CallbackQueryHandler(button_handler))
