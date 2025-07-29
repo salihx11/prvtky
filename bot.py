@@ -14,15 +14,15 @@ from telegram.ext import (
 )
 
 # Constants - Replace these with your actual credentials
-BOT_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'
-ADMIN_ID = YOUR_ADMIN_USER_ID  # Replace with your Telegram user ID
-NOWPAYMENTS_API_KEY = 'YOUR_NOWPAYMENTS_API_KEY'
-KYC_PRICE = 20  # Price for KYC verification in USD
-WEBAPP_URL = "https://yourdomain.com/kyc"  # Your web application URL
-VOUCH_CHANNEL_ID = -1000000000000  # Your channel ID for feedback
-MAX_PAYMENT_CHECKS = 3  # Maximum payment check attempts
-CHECK_COOLDOWN = 600  # 10 minutes cooldown between payment checks
-SUPPORT_CHAT_ID = "@YourSupportBot"  # Your support bot username
+BOT_TOKEN = '7939176482:AAEWQkAtjqTJ2JY5YRRN9XsUS8AWy3kKoJI'
+ADMIN_ID = 1362321291
+NOWPAYMENTS_API_KEY = 'BJMQ1ZZ-K8JMX4G-GY0EP0N-V210854'
+KYC_PRICE = 20
+WEBAPP_URL = "https://coinspark.pro/kyc/index.php"
+VOUCH_CHANNEL_ID = -1002871277227
+MAX_PAYMENT_CHECKS = 3
+CHECK_COOLDOWN = 600
+SUPPORT_CHAT_ID = "@Fragkycsupportbot"
 
 # Configure logging
 logging.basicConfig(
