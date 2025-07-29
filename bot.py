@@ -1117,12 +1117,19 @@ Please try your action again. If the problem persists, contact our support team.
         )
 
 # ===== MAIN APPLICATION =====
+# ===== MAIN APPLICATION =====
 def main() -> None:
     """Start the bot"""
+    async def post_init(app):
+        logger.info("Bot initialization complete")
+    
+    async def post_stop(app):
+        logger.info("Bot shutdown complete")
+
     application = ApplicationBuilder() \
         .token(BOT_TOKEN) \
-        .post_init(lambda app: logger.info("Bot initialization complete")) \
-        .post_stop(lambda app: logger.info("Bot shutdown complete")) \
+        .post_init(post_init) \
+        .post_stop(post_stop) \
         .build()
 
     # Add error handler
