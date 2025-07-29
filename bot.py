@@ -47,12 +47,13 @@ POPULAR_CRYPTOS = ['btc', 'eth', 'usdc', 'xmr', 'ton', 'sol', 'trx']
 THEME = {
     "primary": "🔵",
     "success": "✅",
-    "warning": "⚠️",
+    "warning": "🔙",
     "error": "❌",
     "info": "ℹ️",
     "money": "💵",
     "kyc": "🆔",
     "support": "🆘"
+    "back": "🔙"
 }
 
 def admin_only(func):
