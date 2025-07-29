@@ -13,16 +13,16 @@ from telegram.ext import (
     filters
 )
 
-# Constants
-BOT_TOKEN = '7939176482:AAEWQkAtjqTJ2JY5YRRN9XsUS8AWy3kKoJI'
-ADMIN_ID = 1362321291
-NOWPAYMENTS_API_KEY = 'BJMQ1ZZ-K8JMX4G-GY0EP0N-V210854'
-KYC_PRICE = 20
-WEBAPP_URL = "https://coinspark.pro/kyc/index.php"
-VOUCH_CHANNEL_ID = -1002871277227
-MAX_PAYMENT_CHECKS = 3
-CHECK_COOLDOWN = 600
-SUPPORT_CHAT_ID = "@Fragkycsupportbot"
+# Constants - Replace these with your actual credentials
+BOT_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'
+ADMIN_ID = YOUR_ADMIN_USER_ID  # Replace with your Telegram user ID
+NOWPAYMENTS_API_KEY = 'YOUR_NOWPAYMENTS_API_KEY'
+KYC_PRICE = 20  # Price for KYC verification in USD
+WEBAPP_URL = "https://yourdomain.com/kyc"  # Your web application URL
+VOUCH_CHANNEL_ID = -1000000000000  # Your channel ID for feedback
+MAX_PAYMENT_CHECKS = 3  # Maximum payment check attempts
+CHECK_COOLDOWN = 600  # 10 minutes cooldown between payment checks
+SUPPORT_CHAT_ID = "@YourSupportBot"  # Your support bot username
 
 # Configure logging
 logging.basicConfig(
@@ -31,7 +31,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Global variables
+# Global state management (in production, use a database instead)
 user_balances = {}
 payment_history = {}
 pending_orders = {}
@@ -40,10 +40,10 @@ broadcast_messages = []
 payment_check_attempts = {}
 vouches = {}
 
-# Popular cryptocurrencies
-POPULAR_CRYPTOS = ['btc', 'eth', 'usdc', 'xmr', 'ton', 'sol', 'trx']
+# Supported cryptocurrencies
+POPULAR_CRYPTOS = ['btc', 'eth', 'usdt', 'usdc', 'xmr', 'ton', 'sol', 'trx']
 
-# Theme colors and emojis
+# Theme configuration
 THEME = {
     "primary": "🔵",
     "success": "✅",
@@ -68,9 +68,14 @@ def admin_only(func):
     return wrapped
 
 def back_button():
+    """Helper function to create a back button"""
     return InlineKeyboardMarkup([[InlineKeyboardButton(f"{THEME['warning']} Back", callback_data="back")]])
 
-async def create_invoice(user_id, coin_code):
+async def create_invoice(user_id: int, coin_code: str):
+    """
+    Create a payment invoice with NowPayments API
+    Returns tuple of (invoice_data, error_message)
+    """
     try:
         url = "https://api.nowpayments.io/v1/invoice"
         headers = {
@@ -84,8 +89,8 @@ async def create_invoice(user_id, coin_code):
             "ipn_callback_url": f"{WEBAPP_URL}/callback",
             "order_id": f"KYC_{user_id}_{datetime.datetime.now().timestamp()}",
             "order_description": "Fragment KYC Verification",
-            "success_url": f"https://t.me/Fragmentkyc_bot?start=success_{user_id}",
-            "cancel_url": f"https://t.me/Fragmentkyc_bot?start=cancel_{user_id}"
+            "success_url": f"https://t.me/YourKycBot?start=success_{user_id}",
+            "cancel_url": f"https://t.me/YourKycBot?start=cancel_{user_id}"
         }
         
         response = requests.post(url, headers=headers, json=payload, timeout=10)
@@ -109,7 +114,11 @@ async def create_invoice(user_id, coin_code):
         return None, "An unexpected error occurred. Please try again."
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handle the /start command and show main menu
+    """
     if update.message and update.message.text.startswith('/start success_'):
+        # Handle successful payment callback
         user_id = int(update.message.text.split('_')[1])
         user_balances[user_id] = user_balances.get(user_id, 0) + KYC_PRICE
         payment_id = f"success_{datetime.datetime.now().timestamp()}"
@@ -163,8 +172,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 3. Get verified within minutes
 
 📢 *Community:*
-Reviews: https://t.me/+EYOLheOcBCZkYWNh
-Support: @Fragmentkysupportbot
+Reviews: https://t.me/YourReviewsChannel
+Support: @YourSupportBot
     """
     
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -242,6 +251,7 @@ async def addbalance(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 async def support_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle support requests"""
     query = update.callback_query
     await query.answer()
     
@@ -268,6 +278,7 @@ For immediate assistance, please use the live chat option below.
     )
 
 async def vouch_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle user feedback/vouches"""
     query = update.callback_query
     await query.answer()
     
@@ -276,7 +287,7 @@ async def vouch_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 We value your feedback! Please share your experience with our KYC service.
 
-Your vouch will be posted in our community channel https://t.me/+EYOLheOcBCZkYWNh and helps others trust our service.
+Your vouch will be posted in our community channel and helps others trust our service.
 
 To leave feedback, use the /vouch command followed by your message:
 
@@ -288,12 +299,13 @@ Example:
         vouch_message,
         parse_mode='Markdown',
         reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("👀 View Testimonials", url=f"https://t.me/+EYOLheOcBCZkYWNh")],
+            [InlineKeyboardButton("👀 View Testimonials", url=f"https://t.me/YourReviewsChannel")],
             [InlineKeyboardButton(f"{THEME['warning']} Back", callback_data='back')]
         ])
     )
 
 async def balance_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show user balance"""
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
@@ -323,6 +335,7 @@ async def balance_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def deposit_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle deposit requests"""
     query = update.callback_query
     await query.answer()
     
@@ -354,6 +367,7 @@ Choose your preferred payment method to add funds to your account balance.
     )
 
 async def payment_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle payment flow"""
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
@@ -402,7 +416,8 @@ Please complete your payment within 15 minutes.
         ])
     )
 
-async def check_payment_status(payment_id):
+async def check_payment_status(payment_id: str):
+    """Check payment status with NowPayments API"""
     try:
         url = f"https://api.nowpayments.io/v1/payment/{payment_id}"
         headers = {"x-api-key": NOWPAYMENTS_API_KEY}
@@ -430,6 +445,7 @@ async def check_payment_status(payment_id):
         return False, None
 
 async def payment_status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle payment status checks"""
     query = update.callback_query
     await query.answer()
     payment_id = query.data.split("_")[1]
@@ -525,6 +541,7 @@ Thank you for your payment!
         )
 
 async def history_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show transaction history"""
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
@@ -561,6 +578,7 @@ async def history_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def order_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle KYC orders"""
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
@@ -618,6 +636,7 @@ Please provide your details to complete the verification process.
         )
 
 async def chat_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle chat between users and admin"""
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
@@ -674,6 +693,7 @@ We'll guide you through the entire process.
         )
 
 async def complete_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Mark an order as complete"""
     query = update.callback_query
     await query.answer()
     
@@ -694,7 +714,7 @@ async def complete_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 Thank you for using our service! Your Fragment.com account has been successfully verified.
 
-⭐ Please consider leaving feedback with /vouch command to help others trust our service.Click /start.
+⭐ Please consider leaving feedback with /vouch command to help others trust our service.
     """
     
     await context.bot.send_message(
@@ -704,6 +724,7 @@ Thank you for using our service! Your Fragment.com account has been successfully
     )
 
 async def vouch_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /vouch command for user feedback"""
     user = update.effective_user
     args = context.args
 
@@ -829,6 +850,7 @@ async def cancel_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle all callback queries"""
     query = update.callback_query
     await query.answer()
     
@@ -877,6 +899,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle all text messages"""
     user_id = update.message.from_user.id
     
     # Admin messages to user
@@ -926,6 +949,7 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Error forwarding user message: {e}")
 
 async def end_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /endchat command"""
     if update.message.from_user.id != ADMIN_ID:
         return
     
@@ -976,6 +1000,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         )
 
 def main() -> None:
+    """Start the bot."""
     application = ApplicationBuilder().token(BOT_TOKEN).build()
 
     # Add error handler
@@ -1001,6 +1026,7 @@ def main() -> None:
         when=5
     )
     
+    logger.info("Bot is starting...")
     application.run_polling()
 
 if __name__ == '__main__':
