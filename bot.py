@@ -52,7 +52,7 @@ THEME = {
     "info": "ℹ️",
     "money": "💵",
     "kyc": "🆔",
-    "support": "🆘"
+    "support": "🆘",
     "back": "🔙"
 }
 
