@@ -225,37 +225,6 @@ async def add_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
     except ValueError:
         await update.message.reply_text("❌ Invalid arguments. Please provide user ID and amount as numbers.")
-
-async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.from_user.id != ADMIN_ID:
-        await update.message.reply_text("❌ You are not authorized to use this command.")
-        return
-    
-    args = context.args
-    if not args:
-        await update.message.reply_text(
-            "ℹ️ Usage: /broadcast <message>\n"
-            "Example: /broadcast Important system update!"
-        )
-        return
-    
-    message = " ".join(args)
-    broadcast_messages.append({
-        'text': message,
-        'timestamp': datetime.datetime.now().isoformat(),
-        'admin_id': update.message.from_user.id
-    })
-    
-    await update.message.reply_text(
-        "⚠️ Are you sure you want to broadcast this message to all users?\n\n"
-        f"Message: {message}\n\n"
-        "Reply with /confirmbroadcast to proceed or /cancelbroadcast to cancel.",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ Confirm", callback_data="confirm_broadcast")],
-            [InlineKeyboardButton("❌ Cancel", callback_data="cancel_broadcast")]
-        ])
-    )
-
 async def confirm_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -271,6 +240,32 @@ async def confirm_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     last_message = broadcast_messages[-1]
     message_text = last_message['text']
     
+    # Initialize counters
+    success_count = 0
+    fail_count = 0
+    
+    # Get all users (you'll need to implement this based on your database)
+    # This is just an example - you'll need to replace with your actual user retrieval logic
+    users = get_all_users()  # You need to implement this function
+    
+    # Send message to each user
+    for user in users:
+        try:
+            await context.bot.send_message(
+                chat_id=user['user_id'],
+                text=message_text
+            )
+            success_count += 1
+        except Exception as e:
+            print(f"Failed to send to {user['user_id']}: {e}")
+            fail_count += 1
+    
+    # Update the message with results
+    await query.edit_message_text(
+        f"✅ Broadcast completed!\n\n"
+        f"📩 Sent to: {success_count} users\n"
+        f"❌ Failed: {fail_count} users"
+    )
     # Get all unique user IDs from payment history and pending orders
     user_ids = set()
     for payment in payment_history.values():
