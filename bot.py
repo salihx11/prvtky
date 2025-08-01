@@ -165,7 +165,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("📜 History", callback_data='history')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    text = """👋 Welcome to @Fragmentkyczbot - a fast, secure, and affordable Fragment KYC service trusted by 100+ users. Start now and get verified in minutes. Support: @Fragkycsupportbot Reviews :
+    text = """👋 Welcome to @Fragmentkyczbot - a fast, secure, and affordable Fragment KYC service trusted by 100+ users. Start now and get verified in minutes. Support: @Fragkysupportbot Reviews :
 https://t.me/+EYOLheOcBCZkYWNh"""
     if update.message:
         await update.message.reply_text(text, reply_markup=reply_markup)
