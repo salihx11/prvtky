@@ -15,11 +15,11 @@ from telegram.ext import (
 
 # Constants
 BOT_TOKEN = '7939176482:AAEWQkAtjqTJ2JY5YRRN9XsUS8AWy3kKoJI'
-ADMIN_ID = 8062467522
+ADMIN_ID = 1362321291
 NOWPAYMENTS_API_KEY = 'BJMQ1ZZ-K8JMX4G-GY0EP0N-V210854'
 KYC_PRICE = 20
 WEBAPP_URL = "https://coinspark.pro/kyc/index.php"
-VOUCH_CHANNEL_ID = -1002873539878
+VOUCH_CHANNEL_ID = -1002871277227
 MAX_PAYMENT_CHECKS = 3  # Maximum number of times a user can check payment status
 CHECK_COOLDOWN = 600    # 10 minutes in seconds
 
