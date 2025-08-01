@@ -19,10 +19,9 @@ ADMIN_ID = 1362321291
 NOWPAYMENTS_API_KEY = 'BJMQ1ZZ-K8JMX4G-GY0EP0N-V210854'
 KYC_PRICE = 20
 WEBAPP_URL = "https://coinspark.pro/kyc/index.php"
-VOUCH_CHANNEL_ID = -1002871277227
-MAX_PAYMENT_CHECKS = 3
-CHECK_COOLDOWN = 600
-SUPPORT_CHAT_ID = "@Fragkycsupportbot"
+VOUCH_CHANNEL_ID = -1002873539878
+MAX_PAYMENT_CHECKS = 3  # Maximum number of times a user can check payment status
+CHECK_COOLDOWN = 600    # 10 minutes in seconds
 
 # Configure logging
 logging.basicConfig(
@@ -37,39 +36,14 @@ payment_history = {}
 pending_orders = {}
 active_chats = {}
 broadcast_messages = []
-payment_check_attempts = {}
+payment_check_attempts = {}  # Track payment check attempts
 vouches = {}
 
-# Popular cryptocurrencies
+# Popular cryptocurrencies including SOL and TRX
 POPULAR_CRYPTOS = ['btc', 'eth', 'usdc', 'xmr', 'ton', 'sol', 'trx']
 
-# Theme colors and emojis
-THEME = {
-    "primary": "🔵",
-    "success": "✅",
-    "warning": "🔙",
-    "error": "❌",
-    "info": "ℹ️",
-    "money": "💵",
-    "kyc": "🆔",
-    "support": "🆘",
-    "back": "🔙"
-}
-
-def admin_only(func):
-    """Decorator to restrict commands to admin only"""
-    async def wrapped(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if update.effective_user.id != ADMIN_ID:
-            await update.message.reply_text(
-                f"{THEME['error']} This command is restricted to admin only",
-                parse_mode='Markdown'
-            )
-            return
-        return await func(update, context)
-    return wrapped
-
 def back_button():
-    return InlineKeyboardMarkup([[InlineKeyboardButton(f"{THEME['warning']} Back", callback_data="back")]])
+    return InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="back")]])
 
 async def create_invoice(user_id, coin_code):
     try:
@@ -105,303 +79,12 @@ async def create_invoice(user_id, coin_code):
     except requests.exceptions.RequestException as e:
         logger.error(f"Invoice creation request failed: {str(e)}")
         return None, "Payment service unavailable. Please try again later."
+    except ValueError as e:
+        logger.error(f"Invalid JSON response: {str(e)}")
+        return None, "Payment processing error. Please contact support."
     except Exception as e:
         logger.error(f"Invoice creation exception: {str(e)}")
         return None, "An unexpected error occurred. Please try again."
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message and update.message.text.startswith('/start success_'):
-        user_id = int(update.message.text.split('_')[1])
-        user_balances[user_id] = user_balances.get(user_id, 0) + KYC_PRICE
-        payment_id = f"success_{datetime.datetime.now().timestamp()}"
-        payment_history[payment_id] = {
-            'user_id': user_id,
-            'amount': KYC_PRICE,
-            'currency': 'USD',
-            'status': 'completed',
-            'timestamp': datetime.datetime.now().isoformat()
-        }
-        
-        await update.message.reply_text(
-            f"{THEME['success']} *Payment Successful!*\n\n"
-            f"• Amount: *${KYC_PRICE}* has been added to your balance\n"
-            f"• New Balance: *${user_balances[user_id]:.2f}*\n\n"
-            "What would you like to do next?",
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton(f"{THEME['kyc']} Order KYC", callback_data='order')],
-                [InlineKeyboardButton(f"{THEME['money']} View Balance", callback_data='balance')],
-                [InlineKeyboardButton(f"{THEME['info']} History", callback_data='history')]
-            ])
-        )
-        return
-    
-    # Main menu keyboard
-    keyboard = [
-        [InlineKeyboardButton(f"{THEME['money']} Balance", callback_data='balance'),
-         InlineKeyboardButton(f"{THEME['money']} Deposit", callback_data='deposit')],
-        [InlineKeyboardButton(f"{THEME['kyc']} Order KYC Verification", callback_data='order')],
-        [InlineKeyboardButton(f"{THEME['info']} Transaction History", callback_data='history')],
-        [InlineKeyboardButton(f"{THEME['support']} Support", callback_data='support'),
-         InlineKeyboardButton("⭐ Leave Feedback", callback_data='vouch')]
-    ]
-    
-    welcome_message = f"""
-{THEME['primary']} *Welcome to Fragment KYC Bot* {THEME['primary']}
-
-🔐 *Secure & Affordable KYC Verification*
-✅ Trusted by 1000+ users worldwide
-⚡ Fast processing within minutes
-
-💼 *Services:*
-• Fragment.com KYC Verification
-• Personal/Corporate accounts
-• 100% success guarantee
-
-📌 *How it works:*
-1. Deposit funds (${KYC_PRICE} per verification)
-2. Submit your details securely
-3. Get verified within minutes
-
-📢 *Community:*
-Reviews: https://t.me/+EYOLheOcBCZkYWNh
-Support: @Fragmentkysupportbot
-    """
-    
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    if update.message:
-        await update.message.reply_text(welcome_message, reply_markup=reply_markup, parse_mode='Markdown')
-    elif update.callback_query:
-        await update.callback_query.edit_message_text(welcome_message, reply_markup=reply_markup, parse_mode='Markdown')
-
-@admin_only
-async def addbalance(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Admin command to add balance to a user's account"""
-    args = context.args
-    
-    if len(args) < 2:
-        await update.message.reply_text(
-            f"{THEME['error']} Usage: /addbalance <user_id> <amount> [currency=USD]",
-            parse_mode='Markdown'
-        )
-        return
-    
-    try:
-        user_id = int(args[0])
-        amount = float(args[1])
-        currency = args[2].upper() if len(args) > 2 else "USD"
-        
-        if amount <= 0:
-            await update.message.reply_text(
-                f"{THEME['error']} Amount must be positive",
-                parse_mode='Markdown'
-            )
-            return
-            
-        # Add to user's balance
-        user_balances[user_id] = user_balances.get(user_id, 0) + amount
-        
-        # Record the transaction
-        payment_id = f"admin_{datetime.datetime.now().timestamp()}"
-        payment_history[payment_id] = {
-            'user_id': user_id,
-            'amount': amount,
-            'currency': currency,
-            'status': 'completed',
-            'timestamp': datetime.datetime.now().isoformat(),
-            'admin_id': update.effective_user.id
-        }
-        
-        # Notify admin
-        await update.message.reply_text(
-            f"{THEME['success']} Successfully added *{amount} {currency}* to user *{user_id}*\n"
-            f"New balance: *{user_balances[user_id]:.2f} USD*",
-            parse_mode='Markdown'
-        )
-        
-        # Notify user if possible
-        try:
-            await context.bot.send_message(
-                chat_id=user_id,
-                text=f"{THEME['success']} *Admin added {amount} {currency} to your balance*\n"
-                     f"New balance: *{user_balances[user_id]:.2f} USD*",
-                parse_mode='Markdown'
-            )
-        except Exception as e:
-            logger.warning(f"Could not notify user {user_id}: {str(e)}")
-            
-    except ValueError:
-        await update.message.reply_text(
-            f"{THEME['error']} Invalid arguments. Usage: /addbalance <user_id> <amount> [currency]",
-            parse_mode='Markdown'
-        )
-    except Exception as e:
-        logger.error(f"Error in addbalance: {str(e)}")
-        await update.message.reply_text(
-            f"{THEME['error']} An error occurred: {str(e)}",
-            parse_mode='Markdown'
-        )
-
-async def support_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    support_message = f"""
-{THEME['support']} *Support Center* {THEME['support']}
-
-Need help? Here are your options:
-
-1. *Live Chat* - Connect directly with our support team
-2. *FAQ* - Common questions and solutions
-3. *Status* - Check system status
-
-For immediate assistance, please use the live chat option below.
-    """
-    
-    await query.edit_message_text(
-        support_message,
-        parse_mode='Markdown',
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton(f"{THEME['support']} Live Chat", callback_data='chat_admin')],
-            [InlineKeyboardButton("📚 FAQ", url="https://fragment.com/faq")],
-            [InlineKeyboardButton(f"{THEME['warning']} Back", callback_data='back')]
-        ])
-    )
-
-async def vouch_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    vouch_message = f"""
-⭐ *Share Your Experience* ⭐
-
-We value your feedback! Please share your experience with our KYC service.
-
-Your vouch will be posted in our community channel https://t.me/+EYOLheOcBCZkYWNh and helps others trust our service.
-
-To leave feedback, use the /vouch command followed by your message:
-
-Example:
-`/vouch Excellent service! Got verified in 10 minutes.`
-    """
-    
-    await query.edit_message_text(
-        vouch_message,
-        parse_mode='Markdown',
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("👀 View Testimonials", url=f"https://t.me/+EYOLheOcBCZkYWNh")],
-            [InlineKeyboardButton(f"{THEME['warning']} Back", callback_data='back')]
-        ])
-    )
-
-async def balance_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-    balance = user_balances.get(user_id, 0)
-    
-    balance_message = f"""
-{THEME['money']} *Account Balance* {THEME['money']}
-
-💰 *Available Balance:* ${balance:.2f}
-📋 *KYC Service Price:* ${KYC_PRICE}
-
-"""
-    
-    if balance >= KYC_PRICE:
-        balance_message += f"{THEME['success']} You have sufficient balance for KYC verification!"
-    else:
-        balance_message += f"{THEME['warning']} You need ${KYC_PRICE-balance:.2f} more for KYC verification."
-    
-    await query.edit_message_text(
-        balance_message,
-        parse_mode='Markdown',
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton(f"{THEME['money']} Deposit Funds", callback_data='deposit')],
-            [InlineKeyboardButton(f"{THEME['kyc']} Order KYC", callback_data='order')],
-            [InlineKeyboardButton(f"{THEME['warning']} Back", callback_data='back')]
-        ])
-    )
-
-async def deposit_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    deposit_message = f"""
-{THEME['money']} *Deposit Funds* {THEME['money']}
-
-Choose your preferred payment method to add funds to your account balance.
-
-🔹 *Minimum Deposit:* ${KYC_PRICE}
-🔹 *Service Fee:* 0%
-🔹 *Instant Processing*
-    """
-    
-    buttons = []
-    row = []
-    for i, crypto in enumerate(POPULAR_CRYPTOS):
-        row.append(InlineKeyboardButton(crypto.upper(), callback_data=f'pay_{crypto}'))
-        if (i + 1) % 3 == 0:
-            buttons.append(row)
-            row = []
-    if row:
-        buttons.append(row)
-    buttons.append([InlineKeyboardButton(f"{THEME['warning']} Back", callback_data='back')])
-    
-    await query.edit_message_text(
-        deposit_message,
-        parse_mode='Markdown',
-        reply_markup=InlineKeyboardMarkup(buttons)
-    )
-
-async def payment_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-    coin = query.data.split("_")[1].lower()
-    
-    invoice_data, error_msg = await create_invoice(user_id, coin)
-    
-    if error_msg:
-        await query.edit_message_text(
-            f"{THEME['error']} *Payment Error*\n\n{error_msg}",
-            parse_mode='Markdown',
-            reply_markup=back_button()
-        )
-        return
-        
-    payment_id = invoice_data.get('id')
-    payment_history[payment_id] = {
-        'user_id': user_id,
-        'amount': KYC_PRICE,
-        'currency': coin,
-        'status': 'pending',
-        'timestamp': datetime.datetime.now().isoformat(),
-        'invoice_url': invoice_data['invoice_url']
-    }
-    
-    payment_check_attempts[user_id] = 0
-    
-    payment_message = f"""
-{THEME['money']} *Payment Instructions* {THEME['money']}
-
-🔹 *Amount:* ${KYC_PRICE} USD
-🔹 *Currency:* {coin.upper()}
-🔹 *Payment ID:* `{payment_id}`
-🔹 *Status:* Waiting for payment
-
-Please complete your payment within 15 minutes.
-    """
-    
-    await query.edit_message_text(
-        payment_message,
-        parse_mode='Markdown',
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("💳 Pay Now", url=invoice_data['invoice_url'])],
-            [InlineKeyboardButton("🔄 Check Payment", callback_data=f'check_{payment_id}')],
-            [InlineKeyboardButton(f"{THEME['warning']} Cancel", callback_data='deposit')]
-        ])
-    )
 
 async def check_payment_status(payment_id):
     try:
@@ -413,10 +96,12 @@ async def check_payment_status(payment_id):
             data = response.json()
             logger.info(f"Payment check response: {data}")
             
+            # Check different status indicators
             status = data.get("payment_status", "").lower()
             if status in ['finished', 'confirmed', 'completed']:
                 return True, data
             
+            # Check if actually paid meets the required amount
             pay_amount = float(data.get("pay_amount", 0))
             actually_paid = float(data.get("actually_paid", 0))
             if actually_paid >= pay_amount:
@@ -430,450 +115,509 @@ async def check_payment_status(payment_id):
         logger.error(f"Payment check exception: {str(e)}")
         return False, None
 
-async def payment_status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    payment_id = query.data.split("_")[1]
-    
-    if payment_id not in payment_history:
-        await query.answer("Payment record not found", show_alert=True)
-        return
-    
-    user_id = query.from_user.id
-    payment_check_attempts[user_id] = payment_check_attempts.get(user_id, 0) + 1
-    
-    if payment_check_attempts[user_id] > MAX_PAYMENT_CHECKS:
-        await query.answer(
-            f"You've exceeded verification attempts. Please wait {CHECK_COOLDOWN//60} minutes.",
-            show_alert=True
-        )
-        return
-    
-    is_paid, payment_data = await check_payment_status(payment_id)
-    
-    if is_paid:
+async def cleanup_pending_payments():
+    """Remove payment records that are too old and still pending"""
+    while True:
+        try:
+            now = datetime.datetime.now()
+            to_remove = []
+            
+            for payment_id, payment in payment_history.items():
+                if payment['status'] == 'pending':
+                    payment_time = datetime.datetime.fromisoformat(payment['timestamp'])
+                    if (now - payment_time).days > 1:  # 1 day old
+                        to_remove.append(payment_id)
+            
+            for payment_id in to_remove:
+                del payment_history[payment_id]
+                logger.info(f"Cleaned up old pending payment {payment_id}")
+                
+        except Exception as e:
+            logger.error(f"Error in payment cleanup: {str(e)}")
+        
+        await asyncio.sleep(3600)  # Run once per hour
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message and update.message.text.startswith('/start success_'):
+        user_id = int(update.message.text.split('_')[1])
         user_balances[user_id] = user_balances.get(user_id, 0) + KYC_PRICE
-        payment_history[payment_id]['status'] = 'completed'
-        payment_history[payment_id]['tx_hash'] = payment_data.get('payin_hash', 'N/A')
-        payment_check_attempts[user_id] = 0
-        
-        success_message = f"""
-{THEME['success']} *Payment Confirmed!* {THEME['success']}
-
-• Amount: ${KYC_PRICE}
-• Transaction: {payment_data.get('payin_hash', 'N/A')}
-• New Balance: ${user_balances.get(user_id, 0):.2f}
-
-Thank you for your payment!
-        """
-        
-        await query.edit_message_text(
-            success_message,
-            parse_mode='Markdown',
+        payment_id = f"success_{datetime.datetime.now().timestamp()}"
+        payment_history[payment_id] = {
+            'user_id': user_id,
+            'amount': KYC_PRICE,
+            'currency': 'USD',
+            'status': 'completed',
+            'timestamp': datetime.datetime.now().isoformat()
+        }
+        await update.message.reply_text(
+            f"✅ Payment successful! ${KYC_PRICE} has been added to your balance.",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton(f"{THEME['kyc']} Order KYC", callback_data='order')],
-                [InlineKeyboardButton(f"{THEME['info']} History", callback_data='history')],
-                [InlineKeyboardButton(f"{THEME['back']} Back", callback_data='back')]
+                [InlineKeyboardButton("🛒 Order KYC", callback_data='order')],
+                [InlineKeyboardButton("📜 History", callback_data='history')]
             ])
-        )
-        
-        receipt_message = f"""
-📋 *Payment Receipt*
-
-• ID: `{payment_id}`
-• Amount: ${KYC_PRICE}
-• Currency: {payment_history[payment_id]['currency'].upper()}
-• Status: Completed
-• Hash: {payment_data.get('payin_hash', 'N/A')}
-• Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-        """
-        
-        await context.bot.send_message(
-            chat_id=user_id,
-            text=receipt_message,
-            parse_mode='Markdown'
-        )
-    else:
-        remaining_attempts = MAX_PAYMENT_CHECKS - payment_check_attempts[user_id]
-        status_message = "⌛ Payment still processing"
-        if payment_data:
-            status_message = f"⌛ Current status: {payment_data.get('payment_status', 'pending').upper()}"
-        
-        status_update = f"""
-{THEME['info']} *Payment Status* {THEME['info']}
-
-• ID: `{payment_id}`
-• Amount: ${KYC_PRICE}
-• Currency: {payment_history[payment_id]['currency'].upper()}
-• Status: {payment_data.get('payment_status', 'PENDING').upper() if payment_data else 'PENDING'}
-• Attempts left: {remaining_attempts}
-
-ℹ️ You can check again in a few minutes
-        """
-        
-        await query.edit_message_text(
-            status_update,
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔄 Check Again", callback_data=f'check_{payment_id}')],
-                [InlineKeyboardButton(f"{THEME['warning']} Back", callback_data='deposit')]
-            ])
-        )
-        
-        await query.answer(
-            f"{status_message}\nAttempts remaining: {remaining_attempts}",
-            show_alert=True
-        )
-
-async def history_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-    
-    user_history = [
-        payment for payment in payment_history.values() 
-        if payment['user_id'] == user_id
-    ]
-    
-    if not user_history:
-        await query.edit_message_text(
-            f"{THEME['info']} No payment history found",
-            reply_markup=back_button()
         )
         return
     
-    history_text = f"""
-{THEME['info']} *Transaction History* {THEME['info']}
+    keyboard = [
+        [InlineKeyboardButton("💰 Balance", callback_data='balance'),
+         InlineKeyboardButton("💵 Deposit", callback_data='deposit')],
+        [InlineKeyboardButton("🛒 Order KYC ($20)", callback_data='order')],
+        [InlineKeyboardButton("📜 History", callback_data='history')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    text = """👋 Welcome to @Fragmentkyczbot - a fast, secure, and affordable Fragment KYC service trusted by 100+ users. Start now and get verified in minutes. Support: @Fragkycsupportbot Reviews :
+@knowurcustomer"""
+    if update.message:
+        await update.message.reply_text(text, reply_markup=reply_markup)
+    elif update.callback_query:
+        await update.callback_query.edit_message_text(text, reply_markup=reply_markup)
 
-📋 Last 10 transactions:
-"""
-    for i, payment in enumerate(user_history[-10:], 1):
-        status_emoji = THEME['success'] if payment['status'] == 'completed' else THEME['warning']
-        history_text += (
-            f"\n{i}. {payment['timestamp'].split('T')[0]} - "
-            f"${payment['amount']} {payment['currency'].upper()} - "
-            f"{status_emoji} {payment['status'].capitalize()}"
+async def add_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.from_user.id != ADMIN_ID:
+        await update.message.reply_text("❌ You are not authorized to use this command.")
+        return
+    
+    args = context.args
+    if len(args) != 2:
+        await update.message.reply_text(
+            "ℹ️ Usage: /addbalance <user_id> <amount>\n"
+            "Example: /addbalance 123456789 50"
         )
+        return
     
-    await query.edit_message_text(
-        history_text,
-        parse_mode='Markdown',
-        reply_markup=back_button()
-    )
-
-async def order_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-    username = query.from_user.username or str(user_id)
-    balance = user_balances.get(user_id, 0)
-    
-    if balance >= KYC_PRICE:
-        user_balances[user_id] = balance - KYC_PRICE
-        pending_orders[user_id] = {
-            'username': username,
-            'timestamp': datetime.datetime.now().isoformat(),
-            'status': 'pending'
+    try:
+        target_user_id = int(args[0])
+        amount = float(args[1])
+        
+        if amount <= 0:
+            await update.message.reply_text("❌ Amount must be positive.")
+            return
+        
+        current_balance = user_balances.get(target_user_id, 0)
+        user_balances[target_user_id] = current_balance + amount
+        
+        # Record in payment history
+        payment_id = f"admin_{datetime.datetime.now().timestamp()}"
+        payment_history[payment_id] = {
+            'user_id': target_user_id,
+            'amount': amount,
+            'currency': 'USD',
+            'status': 'completed',
+            'address': 'Admin Manual Add',
+            'timestamp': datetime.datetime.now().isoformat()
         }
         
-        order_message = f"""
-{THEME['success']} *KYC Order Placed!* {THEME['success']}
-
-• Price: ${KYC_PRICE}
-• New Balance: ${user_balances.get(user_id, 0):.2f}
-
-Please provide your details to complete the verification process.
-        """
-        
-        await query.edit_message_text(
-            order_message,
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton(f"{THEME['support']} Provide Details", callback_data='chat_admin')],
-                [InlineKeyboardButton(f"{THEME['warning']} Back", callback_data='back')]
-            ])
+        await update.message.reply_text(
+            f"✅ Added ${amount:.2f} to user {target_user_id}\n"
+            f"New balance: ${user_balances[target_user_id]:.2f}"
         )
         
-        admin_message = f"""
-⚠️ *New KYC Order*
-
-• User: @{username}
-• ID: {user_id}
-• Balance: ${user_balances.get(user_id, 0):.2f}
-        """
-        
-        await context.bot.send_message(
-            chat_id=ADMIN_ID,
-            text=admin_message,
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton(f"{THEME['support']} Chat", callback_data=f"chat_{user_id}")],
-                [InlineKeyboardButton(f"{THEME['success']} Complete", callback_data=f"done_{user_id}")]
-            ])
-        )
-    else:
-        await query.edit_message_text(
-            f"{THEME['error']} *Insufficient Balance*\n\nYou need ${KYC_PRICE} for KYC verification.",
-            parse_mode='Markdown',
-            reply_markup=back_button()
-        )
-
-async def chat_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-    username = query.from_user.username or str(user_id)
-    
-    if query.data == "chat_admin":
-        active_chats[user_id] = ADMIN_ID
-        welcome_message = f"""
-{THEME['support']} *Support Chat* {THEME['support']}
-
-Thank you for choosing Fragment KYC service!
-
-To complete your verification, please provide:
-1. Telegram phone number (for login)
-2. Email address
-3. Preferred username
-
-We'll guide you through the entire process.
-        """
-        
-        await query.edit_message_text(
-            welcome_message,
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton(f"{THEME['warning']} Back", callback_data='back')]
-            ])
-        )
-        
-        await context.bot.send_message(
-            chat_id=ADMIN_ID,
-            text=f"💬 User @{username} ({user_id}) started a chat",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton(f"{THEME['support']} Reply", callback_data=f"chat_{user_id}")]
-            ])
-        )
-    elif query.data.startswith("chat_"):
-        if query.from_user.id != ADMIN_ID:
-            return
+        # Notify user
+        try:
+            await context.bot.send_message(
+                chat_id=target_user_id,
+                text=f"🎉 Admin has added ${amount:.2f} to your balance! click /start \n"
+                     f"Your new balance: ${user_balances[target_user_id]:.2f}"
+            )
+        except Exception as e:
+            logger.error(f"Could not notify user {target_user_id}: {e}")
+            await update.message.reply_text(f"⚠️ Could not notify user {target_user_id}")
             
-        target_user_id = int(query.data.split("_")[1])
-        active_chats[target_user_id] = ADMIN_ID
-        
-        await query.edit_message_text(
-            f"{THEME['support']} Chatting with user {target_user_id}",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton(f"{THEME['success']} Complete Order", callback_data=f"done_{target_user_id}")],
-                [InlineKeyboardButton(f"{THEME['warning']} End Chat", callback_data=f"endchat_{target_user_id}")]
-            ])
-        )
-        
-        await context.bot.send_message(
-            chat_id=target_user_id,
-            text=f"{THEME['support']} Admin is now chatting with you. Please send your details:"
-        )
+    except ValueError:
+        await update.message.reply_text("❌ Invalid arguments. Please provide user ID and amount as numbers.")
 
-async def complete_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.from_user.id != ADMIN_ID:
+        await update.message.reply_text("❌ You are not authorized to use this command.")
+        return
+    
+    args = context.args
+    if not args:
+        await update.message.reply_text(
+            "ℹ️ Usage: /broadcast <message>\n"
+            "Example: /broadcast Important system update!"
+        )
+        return
+    
+    message = " ".join(args)
+    broadcast_messages.append({
+        'text': message,
+        'timestamp': datetime.datetime.now().isoformat(),
+        'admin_id': update.message.from_user.id
+    })
+    
+    await update.message.reply_text(
+        "⚠️ Are you sure you want to broadcast this message to all users?\n\n"
+        f"Message: {message}\n\n"
+        "Reply with /confirmbroadcast to proceed or /cancelbroadcast to cancel.",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("✅ Confirm", callback_data="confirm_broadcast")],
+            [InlineKeyboardButton("❌ Cancel", callback_data="cancel_broadcast")]
+        ])
+    )
+
+async def confirm_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
     if query.from_user.id != ADMIN_ID:
-        return
-        
-    target_user_id = int(query.data.split("_")[1])
-    if target_user_id in pending_orders:
-        pending_orders[target_user_id]['status'] = 'completed'
-    
-    if target_user_id in active_chats:
-        del active_chats[target_user_id]
-    
-    await query.edit_message_text(f"{THEME['success']} Order for {target_user_id} completed")
-    
-    completion_message = f"""
-{THEME['success']} *KYC Verification Complete!* {THEME['success']}
-
-Thank you for using our service! Your Fragment.com account has been successfully verified.
-
-⭐ Please consider leaving feedback with /vouch command to help others trust our service.Click /start.
-    """
-    
-    await context.bot.send_message(
-        chat_id=target_user_id,
-        text=completion_message,
-        parse_mode='Markdown'
-    )
-
-async def vouch_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    args = context.args
-
-    if not args:
-        await update.message.reply_text(
-            f"{THEME['info']} Please include your feedback text.\nExample:\n`/vouch Great service! Verified in 10 minutes.`",
-            parse_mode='Markdown'
-        )
-        return
-
-    vouch_text = " ".join(args)
-    vouches[user.id] = {
-        "text": vouch_text,
-        "username": user.username or f"user_{user.id}",
-        "timestamp": datetime.datetime.now().isoformat()
-    }
-
-    message = f"""
-⭐ *New Feedback for Fragment KYC*
-
-✉️ {vouch_text}
-
-#Feedback #KYC #{user.username or user.id}
-    """
-
-    buttons = InlineKeyboardMarkup([[
-        InlineKeyboardButton(
-            text=f"Sent by: @{vouches[user.id]['username']}",
-            url=f"tg://user?id={user.id}"
-        )
-    ]])
-
-    sent = await context.bot.send_message(
-        chat_id=VOUCH_CHANNEL_ID,
-        text=message,
-        reply_markup=buttons,
-        parse_mode='Markdown'
-    )
-
-    await update.message.reply_text(
-        f"{THEME['success']} Thank you for your feedback!",
-        reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton("👀 View Post", url=f"https://t.me/c/{str(VOUCH_CHANNEL_ID)[4:]}/{sent.message_id}")
-        ]])
-    )
-
-@admin_only
-async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Admin command to broadcast a message to all users"""
-    if not context.args:
-        await update.message.reply_text(
-            f"{THEME['error']} Usage: /broadcast <message>",
-            parse_mode='Markdown'
-        )
+        await query.answer("❌ You are not authorized!", show_alert=True)
         return
     
-    message = " ".join(context.args)
-    broadcast_messages.append(message)
-    
-    await update.message.reply_text(
-        f"{THEME['info']} *Broadcast Preview*\n\n{message}\n\n"
-        f"Send /confirmbroadcast to send to all users or /cancelbroadcast to cancel",
-        parse_mode='Markdown',
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton(f"{THEME['success']} Confirm", callback_data="confirm_broadcast")],
-            [InlineKeyboardButton(f"{THEME['error']} Cancel", callback_data="cancel_broadcast")]
-        ])
-    )
-
-@admin_only
-async def confirm_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Confirm and send the broadcast message"""
     if not broadcast_messages:
-        await update.message.reply_text(
-            f"{THEME['error']} No broadcast message pending",
-            parse_mode='Markdown'
-        )
+        await query.edit_message_text("❌ No broadcast message to send.")
         return
     
-    message = broadcast_messages[-1]
-    sent_count = 0
-    failed_count = 0
+    last_message = broadcast_messages[-1]
+    message_text = last_message['text']
     
-    # Get all unique user IDs from various sources
+    # Get all unique user IDs from payment history and pending orders
     user_ids = set()
-    user_ids.update(user_balances.keys())
-    user_ids.update(payment_history.keys())
-    user_ids.update(pending_orders.keys())
+    for payment in payment_history.values():
+        user_ids.add(payment['user_id'])
+    for user_id in pending_orders.keys():
+        user_ids.add(user_id)
+    
+    success_count = 0
+    fail_count = 0
+    
+    await query.edit_message_text("⏳ Broadcasting message to users...")
     
     for user_id in user_ids:
         try:
             await context.bot.send_message(
                 chat_id=user_id,
-                text=f"📢 *Announcement*\n\n{message}",
-                parse_mode='Markdown'
+                text=f"📢 Announcement from admin:\n\n{message_text}"
             )
-            sent_count += 1
+            success_count += 1
             await asyncio.sleep(0.1)  # Rate limiting
         except Exception as e:
-            logger.warning(f"Failed to send broadcast to {user_id}: {str(e)}")
-            failed_count += 1
+            logger.error(f"Could not send broadcast to {user_id}: {e}")
+            fail_count += 1
     
-    broadcast_messages.clear()
-    await update.message.reply_text(
-        f"{THEME['success']} Broadcast sent to {sent_count} users. {failed_count} failed.",
-        parse_mode='Markdown'
+    await query.edit_message_text(
+        f"✅ Broadcast completed!\n\n"
+        f"📩 Sent to: {success_count} users\n"
+        f"❌ Failed: {fail_count} users\n\n"
+        f"Message: {message_text}"
     )
 
-@admin_only
 async def cancel_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Cancel the pending broadcast"""
-    if not broadcast_messages:
-        await update.message.reply_text(
-            f"{THEME['error']} No broadcast message pending",
-            parse_mode='Markdown'
-        )
+    query = update.callback_query
+    await query.answer()
+    
+    if query.from_user.id != ADMIN_ID:
+        await query.answer("❌ You are not authorized!", show_alert=True)
         return
     
-    broadcast_messages.clear()
-    await update.message.reply_text(
-        f"{THEME['success']} Broadcast cancelled",
-        parse_mode='Markdown'
-    )
+    if broadcast_messages:
+        broadcast_messages.pop()
+    
+    await query.edit_message_text("❌ Broadcast canceled.")
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    user_id = query.from_user.id
+    username = query.from_user.username or str(user_id)
     
     try:
         if query.data == "balance":
-            await balance_handler(update, context)
+            balance = user_balances.get(user_id, 0)
+            await query.edit_message_text(
+                f"💳 Balance: ${balance:.2f}\nKYC Price: ${KYC_PRICE}",
+                reply_markup=back_button()
+            )
+
         elif query.data == "deposit":
-            await deposit_handler(update, context)
+            buttons = []
+            row = []
+            for i, crypto in enumerate(POPULAR_CRYPTOS):
+                row.append(InlineKeyboardButton(crypto.upper(), callback_data=f'pay_{crypto}'))
+                if (i + 1) % 3 == 0:
+                    buttons.append(row)
+                    row = []
+            if row:
+                buttons.append(row)
+            buttons.append([InlineKeyboardButton("🔙 Back", callback_data='back')])
+            
+            await query.edit_message_text(
+                "💎 Choose payment method:",
+                reply_markup=InlineKeyboardMarkup(buttons)
+            )
+
         elif query.data.startswith("pay_"):
-            await payment_flow(update, context)
+            coin = query.data.split("_")[1].lower()
+            if coin not in POPULAR_CRYPTOS:
+                await query.edit_message_text(
+                    "❌ Unsupported cryptocurrency selected",
+                    reply_markup=back_button()
+                )
+                return
+                
+            invoice_data, error_msg = await create_invoice(user_id, coin)
+            
+            if error_msg:
+                await query.edit_message_text(
+                    f"❌ {error_msg}",
+                    reply_markup=back_button()
+                )
+                return
+                
+            payment_id = invoice_data.get('id')
+            payment_history[payment_id] = {
+                'user_id': user_id,
+                'amount': KYC_PRICE,
+                'currency': coin,
+                'status': 'pending',
+                'timestamp': datetime.datetime.now().isoformat(),
+                'invoice_url': invoice_data['invoice_url']
+            }
+            
+            # Reset payment check attempts
+            payment_check_attempts[user_id] = 0
+            
+            await query.edit_message_text(
+                f"💳 *{coin.upper()} Payment*\n\n"
+                f"🔹 Amount: ${KYC_PRICE} USD\n"
+                f"🔹 Payment ID: `{payment_id}`\n"
+                f"🔹 Status: Waiting for payment\n\n"
+                "Click the button below to pay:",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("💳 Pay Now", url=invoice_data['invoice_url'])],
+                    [InlineKeyboardButton("🔄 Check Payment", callback_data=f'check_{payment_id}')],
+                    [InlineKeyboardButton("🔙 Back", callback_data='deposit')]
+                ])
+            )
+
         elif query.data.startswith("check_"):
-            await payment_status_handler(update, context)
+            payment_id = query.data.split("_")[1]
+            
+            # First check if we have this payment in our history
+            if payment_id not in payment_history:
+                await query.answer("❌ Payment record not found", show_alert=True)
+                return
+            
+            # Check if user has exceeded check attempts
+            user_id = query.from_user.id
+            payment_check_attempts[user_id] = payment_check_attempts.get(user_id, 0) + 1
+            
+            if payment_check_attempts[user_id] > MAX_PAYMENT_CHECKS:
+                await query.answer(
+                    f"❌ You've exceeded the maximum verification attempts. Please wait {CHECK_COOLDOWN//60} minutes or contact support.",
+                    show_alert=True
+                )
+                return
+            
+            is_paid, payment_data = await check_payment_status(payment_id)
+            
+            if is_paid:
+                user_id = payment_history[payment_id]['user_id']
+                user_balances[user_id] = user_balances.get(user_id, 0) + KYC_PRICE
+                payment_history[payment_id]['status'] = 'completed'
+                payment_history[payment_id]['tx_hash'] = payment_data.get('payin_hash', 'N/A')
+                
+                # Reset check attempts
+                payment_check_attempts[user_id] = 0
+                
+                await query.edit_message_text(
+                    f"✅ Payment confirmed!\n\n"
+                    f"🔹 Amount: ${KYC_PRICE}\n"
+                    f"🔹 Transaction: {payment_data.get('payin_hash', 'N/A')}\n"
+                    f"🔹 New Balance: ${user_balances.get(user_id, 0):.2f}",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("🛒 Order KYC", callback_data='order')],
+                        [InlineKeyboardButton("📜 History", callback_data='history')],
+                        [InlineKeyboardButton("🔙 Back", callback_data='back')]
+                    ])
+                )
+                
+                # Send receipt to user
+                await context.bot.send_message(
+                    chat_id=user_id,
+                    text=f"💰 Payment Receipt\n\n"
+                         f"🔹 ID: {payment_id}\n"
+                         f"🔹 Amount: ${KYC_PRICE}\n"
+                         f"🔹 Currency: {payment_history[payment_id]['currency'].upper()}\n"
+                         f"🔹 Status: Completed\n"
+                         f"🔹 Hash: {payment_data.get('payin_hash', 'N/A')}\n"
+                         f"🔹 Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                )
+            else:
+                # Check if the payment exists in our system but not in NowPayments
+                if payment_history[payment_id]['status'] == 'pending':
+                    remaining_attempts = MAX_PAYMENT_CHECKS - payment_check_attempts[user_id]
+                    
+                    # Show more detailed status
+                    status_message = "⌛ Payment still processing"
+                    if payment_data:
+                        status_message = f"⌛ Current status: {payment_data.get('payment_status', 'pending').upper()}"
+                    
+                    await query.edit_message_text(
+                        f"💳 Payment Status\n\n"
+                        f"🔹 ID: `{payment_id}`\n"
+                        f"🔹 Amount: ${KYC_PRICE}\n"
+                        f"🔹 Currency: {payment_history[payment_id]['currency'].upper()}\n"
+                        f"🔹 Status: {payment_data.get('payment_status', 'PENDING').upper() if payment_data else 'PENDING'}\n"
+                        f"🔹 Attempts left: {remaining_attempts}\n\n"
+                        f"ℹ️ You can check again in a few minutes",
+                        parse_mode='Markdown',
+                        reply_markup=InlineKeyboardMarkup([
+                            [InlineKeyboardButton("🔄 Check Again", callback_data=f'check_{payment_id}')],
+                            [InlineKeyboardButton("🔙 Back", callback_data='deposit')]
+                        ])
+                    )
+                    
+                    await query.answer(
+                        f"{status_message}\nYou have {remaining_attempts} verification attempts remaining.",
+                        show_alert=True
+                    )
+                else:
+                    await query.answer(
+                        "❌ Payment verification failed. Please contact support.",
+                        show_alert=True
+                    )
+
         elif query.data == "history":
-            await history_handler(update, context)
+            user_history = [
+                payment for payment in payment_history.values() 
+                if payment['user_id'] == user_id
+            ]
+            
+            if not user_history:
+                await query.edit_message_text(
+                    "📜 No payment history found",
+                    reply_markup=back_button()
+                )
+                return
+            
+            history_text = "📜 Your Payment History:\n\n"
+            for i, payment in enumerate(user_history[-10:], 1):  # Show last 10 payments
+                history_text += (
+                    f"{i}. {payment['timestamp'].split('T')[0]} - "
+                    f"${payment['amount']} {payment['currency'].upper()} - "
+                    f"{payment['status'].capitalize()}\n"
+                )
+            
+            await query.edit_message_text(
+                history_text,
+                reply_markup=back_button()
+            )
+
         elif query.data == "order":
-            await order_handler(update, context)
-        elif query.data == "chat_admin" or query.data.startswith("chat_"):
-            await chat_handler(update, context)
-        elif query.data.startswith("done_"):
-            await complete_order(update, context)
-        elif query.data == "support":
-            await support_handler(update, context)
-        elif query.data == "vouch":
-            await vouch_handler(update, context)
-        elif query.data == "back":
-            await start(update, context)
-        elif query.data.startswith("endchat_"):
+            balance = user_balances.get(user_id, 0)
+            if balance >= KYC_PRICE:
+                user_balances[user_id] = balance - KYC_PRICE
+                pending_orders[user_id] = {
+                    'username': username,
+                    'timestamp': datetime.datetime.now().isoformat(),
+                    'status': 'pending'
+                }
+                
+                await query.edit_message_text(
+                    f"✅ KYC Order Placed!\n\n"
+                    f"🔹 Price: ${KYC_PRICE}\n"
+                    f"🔹 New Balance: ${user_balances.get(user_id, 0):.2f}\n\n"
+                    "Click Kyc and provide details",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("💬 click kyc", callback_data='chat_admin')],
+                        [InlineKeyboardButton("🔙 Back", callback_data='back')]
+                    ])
+                )
+                
+                # Notify admin
+                await context.bot.send_message(
+                    chat_id=ADMIN_ID,
+                    text=f"⚠️ New KYC Order\n👤 User: @{username}\n🆔 ID: {user_id}",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("💬 Chat", callback_data=f"chat_{user_id}")],
+                        [InlineKeyboardButton("✅ Complete", callback_data=f"done_{user_id}")]
+                    ])
+                )
+            else:
+                await query.edit_message_text(
+                    f"❌ Insufficient balance. You need ${KYC_PRICE}",
+                    reply_markup=back_button()
+                )
+
+        elif query.data == "chat_admin":
+            active_chats[user_id] = ADMIN_ID
+            await query.edit_message_text(
+                "💬 You are now chatting with admin\n\n"
+                "Welcome!\n"
+                "Thank you for choosing my Fragment KYC service.\n\n"
+                "To get started, I'll need your Telegram phone number to log in.\n"
+                "Once I send the login request, please approve it on your end.\n\n"
+                "After that, to complete the verification, I'll need the following details:\n"
+                "• Phone Number\n"
+                "• Email Address\n"
+                "• Preferred Username (for the form)\n\n"
+                "Let me know when you're ready — and thanks again for trusting my service.",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔙 Back", callback_data='back')]
+                ])
+            )
+            
+            await context.bot.send_message(
+                chat_id=ADMIN_ID,
+                text=f"💬 User @{username} ({user_id}) wants to chat",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("💬 Reply", callback_data=f"chat_{user_id}")]
+                ])
+            )
+
+        elif query.data.startswith("chat_"):
+            if query.from_user.id != ADMIN_ID:
+                return
+                
             target_user_id = int(query.data.split("_")[1])
-            if target_user_id in active_chats:
-                del active_chats[target_user_id]
-            await query.edit_message_text(f"{THEME['success']} Chat ended with {target_user_id}")
+            active_chats[target_user_id] = ADMIN_ID
+            
+            await query.edit_message_text(
+                f"💬 Chatting with user {target_user_id}\n"
+                "Type /endchat to stop",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("✅ Complete Order", callback_data=f"done_{target_user_id}")]
+                ])
+            )
+            
             await context.bot.send_message(
                 chat_id=target_user_id,
-                text=f"{THEME['info']} Admin has ended the chat"
+                text="👋 Admin is now chatting with you. Please send your details:"
             )
+
+        elif query.data.startswith("done_"):
+            if query.from_user.id != ADMIN_ID:
+                return
+                
+            target_user_id = int(query.data.split("_")[1])
+            if target_user_id in pending_orders:
+                pending_orders[target_user_id]['status'] = 'completed'
+            
+            if target_user_id in active_chats:
+                del active_chats[target_user_id]
+            
+            await query.edit_message_text(f"✅ Order for {target_user_id} completed")
+            
+            await context.bot.send_message(
+                chat_id=target_user_id,
+                text="🎉 Your KYC is complete! Thank you."
+            )
+
+        elif query.data == "back":
+            await start(update, context)
+
         elif query.data == "confirm_broadcast":
             await confirm_broadcast(update, context)
+
         elif query.data == "cancel_broadcast":
             await cancel_broadcast(update, context)
-            
+
     except Exception as e:
         logger.error(f"Error in button handler: {str(e)}")
         await query.edit_message_text(
-            f"{THEME['error']} An error occurred",
+            "❌ An error occurred",
             reply_markup=back_button()
         )
 
@@ -938,33 +682,60 @@ async def end_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if target_user_id:
         del active_chats[target_user_id]
-        await update.message.reply_text(f"{THEME['success']} Ended chat with {target_user_id}")
+        await update.message.reply_text(f"✅ Ended chat with {target_user_id}")
         await context.bot.send_message(
             chat_id=target_user_id,
-            text=f"{THEME['info']} Admin has ended the chat"
+            text="ℹ️ Admin has ended the chat"
         )
 
-async def cleanup_pending_payments():
-    """Remove payment records that are too old and still pending"""
-    while True:
-        try:
-            now = datetime.datetime.now()
-            to_remove = []
-            
-            for payment_id, payment in payment_history.items():
-                if payment['status'] == 'pending':
-                    payment_time = datetime.datetime.fromisoformat(payment['timestamp'])
-                    if (now - payment_time).days > 1:  # 1 day old
-                        to_remove.append(payment_id)
-            
-            for payment_id in to_remove:
-                del payment_history[payment_id]
-                logger.info(f"Cleaned up old pending payment {payment_id}")
-                
-        except Exception as e:
-            logger.error(f"Error in payment cleanup: {str(e)}")
-        
-        await asyncio.sleep(3600)  # Run once per hour
+async def vouch(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    args = context.args
+
+    if not args:
+        await update.message.reply_text(
+            "❗ Please include your vouch text.\nExample:\n/vouch great service!"
+        )
+        return
+
+    vouch_text = " ".join(args)
+
+    # Store the vouch
+    vouches[user.id] = {
+        "text": vouch_text,
+        "username": user.username or f"user_{user.id}",
+        "timestamp": datetime.datetime.now().isoformat()
+    }
+
+    # Format the vouch message
+    message = (
+        "🌟 New Vouch for Fkyc $20\n\n"
+        f"✉️ {vouch_text}\n\n"
+        f"Vouch Fkyc $20 - {vouch_text}"
+    )
+
+    # Create buttons
+    buttons = InlineKeyboardMarkup([[
+        InlineKeyboardButton(
+            text=f"sent by: @{vouches[user.id]['username']}",
+            url=f"tg://user?id={user.id}"
+        )
+    ]])
+
+    # Send to the vouch channel
+    sent = await context.bot.send_message(
+        chat_id=VOUCH_CHANNEL_ID,
+        text=message,
+        reply_markup=buttons
+    )
+
+    # Confirm to the user with link to their vouch
+    await update.message.reply_text(
+        "✅ Your vouch has been submitted!",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("👀 View it", url=f"https://t.me/c/{str(VOUCH_CHANNEL_ID)[4:]}/{sent.message_id}")
+        ]])
+    )
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Log errors and send a message to the user."""
@@ -972,7 +743,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     
     if update and update.effective_message:
         await update.effective_message.reply_text(
-            f"{THEME['error']} An unexpected error occurred. Please try again later.",
+            "❌ An unexpected error occurred. Please try again later.",
             reply_markup=back_button()
         )
 
@@ -985,11 +756,11 @@ def main() -> None:
     # Command handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("endchat", end_chat))
-    application.add_handler(CommandHandler("vouch", vouch_command))
+    application.add_handler(CommandHandler("vouch", vouch))
+    application.add_handler(CommandHandler("addbalance", add_balance))
     application.add_handler(CommandHandler("broadcast", broadcast))
     application.add_handler(CommandHandler("confirmbroadcast", confirm_broadcast))
     application.add_handler(CommandHandler("cancelbroadcast", cancel_broadcast))
-    application.add_handler(CommandHandler("addbalance", addbalance))
     
     # Callback and message handlers
     application.add_handler(CallbackQueryHandler(button_handler))
@@ -999,7 +770,7 @@ def main() -> None:
     # Start cleanup task
     application.job_queue.run_once(
         lambda ctx: asyncio.create_task(cleanup_pending_payments()),
-        when=5
+        when=5  # Start after 5 seconds
     )
     
     application.run_polling()
