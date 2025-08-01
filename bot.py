@@ -225,7 +225,39 @@ async def add_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
     except ValueError:
         await update.message.reply_text("❌ Invalid arguments. Please provide user ID and amount as numbers.")
+async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle the /broadcast command"""
+    if update.message.from_user.id != ADMIN_ID:
+        await update.message.reply_text("❌ You are not authorized to use this command.")
+        return
+    
+    args = context.args
+    if not args:
+        await update.message.reply_text(
+            "ℹ️ Usage: /broadcast <message>\n"
+            "Example: /broadcast Important system update!"
+        )
+        return
+    
+    message = " ".join(args)
+    broadcast_messages.append({
+        'text': message,
+        'timestamp': datetime.datetime.now().isoformat(),
+        'admin_id': update.message.from_user.id
+    })
+    
+    await update.message.reply_text(
+        "⚠️ Are you sure you want to broadcast this message to all users?\n\n"
+        f"Message: {message}\n\n"
+        "Click the buttons below to confirm or cancel:",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("✅ Confirm", callback_data="confirm_broadcast")],
+            [InlineKeyboardButton("❌ Cancel", callback_data="cancel_broadcast")]
+        ])
+    )
+
 async def confirm_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle broadcast confirmation"""
     query = update.callback_query
     await query.answer()
     
@@ -244,52 +276,30 @@ async def confirm_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     success_count = 0
     fail_count = 0
     
-    # Get all users (you'll need to implement this based on your database)
-    # This is just an example - you'll need to replace with your actual user retrieval logic
-    users = get_all_users()  # You need to implement this function
+    # Get all chat IDs from your database
+    # This is a placeholder - implement your actual user retrieval
+    all_chat_ids = get_all_chat_ids()  # You need to implement this
     
-    # Send message to each user
-    for user in users:
+    # Edit the original message to show "Broadcasting in progress..."
+    await query.edit_message_text(
+        "📤 Broadcasting in progress...\n\n"
+        f"Message: {message_text}\n\n"
+        "Please wait..."
+    )
+    
+    # Send to all users
+    for chat_id in all_chat_ids:
         try:
             await context.bot.send_message(
-                chat_id=user['user_id'],
+                chat_id=chat_id,
                 text=message_text
             )
             success_count += 1
         except Exception as e:
-            print(f"Failed to send to {user['user_id']}: {e}")
+            print(f"Failed to send to {chat_id}: {str(e)}")
             fail_count += 1
     
-    # Update the message with results
-    await query.edit_message_text(
-        f"✅ Broadcast completed!\n\n"
-        f"📩 Sent to: {success_count} users\n"
-        f"❌ Failed: {fail_count} users"
-    )
-    # Get all unique user IDs from payment history and pending orders
-    user_ids = set()
-    for payment in payment_history.values():
-        user_ids.add(payment['user_id'])
-    for user_id in pending_orders.keys():
-        user_ids.add(user_id)
-    
-    success_count = 0
-    fail_count = 0
-    
-    await query.edit_message_text("⏳ Broadcasting message to users...")
-    
-    for user_id in user_ids:
-        try:
-            await context.bot.send_message(
-                chat_id=user_id,
-                text=f"📢 Announcement from admin:\n\n{message_text}"
-            )
-            success_count += 1
-            await asyncio.sleep(0.1)  # Rate limiting
-        except Exception as e:
-            logger.error(f"Could not send broadcast to {user_id}: {e}")
-            fail_count += 1
-    
+    # Update with final results
     await query.edit_message_text(
         f"✅ Broadcast completed!\n\n"
         f"📩 Sent to: {success_count} users\n"
@@ -297,6 +307,29 @@ async def confirm_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Message: {message_text}"
     )
 
+async def cancel_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle broadcast cancellation"""
+    query = update.callback_query
+    await query.answer()
+    
+    if query.from_user.id != ADMIN_ID:
+        await query.answer("❌ You are not authorized!", show_alert=True)
+        return
+    
+    await query.edit_message_text("❌ Broadcast cancelled.")
+
+# Add these to your main application
+def setup_broadcast_handlers(application):
+    application.add_handler(CommandHandler("broadcast", broadcast))
+    application.add_handler(CallbackQueryHandler(confirm_broadcast, pattern="^confirm_broadcast$"))
+    application.add_handler(CallbackQueryHandler(cancel_broadcast, pattern="^cancel_broadcast$"))
+
+# Example user database function - IMPLEMENT THIS PROPERLY
+def get_all_chat_ids():
+    """Retrieve all chat IDs that should receive broadcasts"""
+    # This should return a list of chat IDs from your database
+    # Example: return [12345, 67890] 
+    return []  # Replace with actual implementation
 async def cancel_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
