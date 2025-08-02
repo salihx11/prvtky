@@ -48,73 +48,70 @@ def init_db():
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
     
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS users (
-        user_id INTEGER PRIMARY KEY,
-        username TEXT,
-        balance REAL DEFAULT 0,
-        registration_date TEXT,
-        last_active TEXT,
-        is_admin BOOLEAN DEFAULT 0
-    )
-    ''')
-    
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS payments (
-        payment_id TEXT PRIMARY KEY,
-        user_id INTEGER,
-        amount REAL,
-        currency TEXT,
-        status TEXT,
-        invoice_url TEXT,
-        tx_hash TEXT,
-        timestamp TEXT,
-        FOREIGN KEY(user_id) REFERENCES users(user_id)
-    )
-    ''')  # Added missing closing parenthesis
-    
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS orders (
-        order_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        status TEXT,
-        order_date TEXT,
-        completion_date TEXT,
-        details TEXT,
-        FOREIGN KEY(user_id) REFERENCES users(user_id)
-    )
-    ''')
-    
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS admin_stats (
-        stat_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        total_users INTEGER DEFAULT 0,
-        total_payments REAL DEFAULT 0,
-        total_orders INTEGER DEFAULT 0,
-        last_updated TEXT
-    )
-    ''')
-    
-    # Insert admin user if not exists
-    cursor.execute('SELECT * FROM users WHERE user_id = ?', (ADMIN_ID,))
-    if not cursor.fetchone():
+    try:
+        # Create tables
         cursor.execute('''
-        INSERT INTO users (user_id, username, balance, registration_date, last_active, is_admin)
-        VALUES (?, ?, ?, ?, ?, ?)
-        ''', (ADMIN_ID, "admin", 0, datetime.datetime.now().isoformat(), datetime.datetime.now().isoformat(), 1))
-    
-    conn.commit()
-    conn.close()
-    # Insert admin user if not exists
-    cursor.execute('SELECT * FROM users WHERE user_id = ?', (ADMIN_ID,))
-    if not cursor.fetchone():
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY,
+            username TEXT,
+            balance REAL DEFAULT 0,
+            registration_date TEXT,
+            last_active TEXT,
+            is_admin BOOLEAN DEFAULT 0
+        )
+        ''')
+        
         cursor.execute('''
-        INSERT INTO users (user_id, username, balance, registration_date, last_active, is_admin)
-        VALUES (?, ?, ?, ?, ?, ?)
-        ''', (ADMIN_ID, "admin", 0, datetime.datetime.now().isoformat(), datetime.datetime.now().isoformat(), 1))
-    
-    conn.commit()
-    conn.close()
+        CREATE TABLE IF NOT EXISTS payments (
+            payment_id TEXT PRIMARY KEY,
+            user_id INTEGER,
+            amount REAL,
+            currency TEXT,
+            status TEXT,
+            invoice_url TEXT,
+            tx_hash TEXT,
+            timestamp TEXT,
+            FOREIGN KEY(user_id) REFERENCES users(user_id)
+        )
+        ''')
+        
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS orders (
+            order_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            status TEXT,
+            order_date TEXT,
+            completion_date TEXT,
+            details TEXT,
+            FOREIGN KEY(user_id) REFERENCES users(user_id)
+        )
+        ''')
+        
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS admin_stats (
+            stat_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            total_users INTEGER DEFAULT 0,
+            total_payments REAL DEFAULT 0,
+            total_orders INTEGER DEFAULT 0,
+            last_updated TEXT
+        )
+        ''')
+        
+        # Check if admin exists and insert if not
+        cursor.execute('SELECT * FROM users WHERE user_id = ?', (ADMIN_ID,))
+        if not cursor.fetchone():
+            cursor.execute('''
+            INSERT INTO users (user_id, username, balance, registration_date, last_active, is_admin)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ''', (ADMIN_ID, "admin", 0, datetime.datetime.now().isoformat(), datetime.datetime.now().isoformat(), 1))
+        
+        conn.commit()
+    except Exception as e:
+        logger.error(f"Error initializing database: {str(e)}")
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 # Initialize database
 init_db()
