@@ -466,6 +466,7 @@ Choose your preferred payment method:
             text=message,
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup(keyboard)
+        )
         
     except Exception as e:
         logger.error(f"Error in deposit handler: {str(e)}")
@@ -509,6 +510,7 @@ Select from our other supported cryptocurrencies:
             text=message,
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup(keyboard)
+        )
         
     except Exception as e:
         logger.error(f"Error in more_crypto_options: {str(e)}")
