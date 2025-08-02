@@ -70,7 +70,8 @@ def init_db():
         tx_hash TEXT,
         timestamp TEXT,
         FOREIGN KEY(user_id) REFERENCES users(user_id)
-    ''')
+    )
+    ''')  # Added missing closing parenthesis
     
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS orders (
@@ -94,6 +95,16 @@ def init_db():
     )
     ''')
     
+    # Insert admin user if not exists
+    cursor.execute('SELECT * FROM users WHERE user_id = ?', (ADMIN_ID,))
+    if not cursor.fetchone():
+        cursor.execute('''
+        INSERT INTO users (user_id, username, balance, registration_date, last_active, is_admin)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ''', (ADMIN_ID, "admin", 0, datetime.datetime.now().isoformat(), datetime.datetime.now().isoformat(), 1))
+    
+    conn.commit()
+    conn.close()
     # Insert admin user if not exists
     cursor.execute('SELECT * FROM users WHERE user_id = ?', (ADMIN_ID,))
     if not cursor.fetchone():
