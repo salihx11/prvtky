@@ -70,7 +70,8 @@ def init_db():
         tx_hash TEXT,
         timestamp TEXT,
         FOREIGN KEY(user_id) REFERENCES users(user_id)
-    ''')
+    )
+    ''')  # Added missing closing parenthesis
     
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS orders (
