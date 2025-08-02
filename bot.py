@@ -455,12 +455,13 @@ Choose your preferred payment method:
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup(keyboard)
         
-    except Exception as e:
-        logger.error(f"Error in deposit handler: {str(e)}")
-        await query.edit_message_text(
-            f"{THEME['error']} An error occurred. Please try again.",
-            reply_markup=back_button()
-        )
+  except Exception as e:
+    logger.error(f"Error in deposit handler: {str(e)}")
+    await query.edit_message_text(
+        text=f"{THEME['error']} An error occurred. Please try again.",
+        reply_markup=back_button()
+    )
+
 
 async def more_crypto_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show additional cryptocurrency options"""
