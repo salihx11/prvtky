@@ -454,16 +454,25 @@ Choose your preferred payment method:
             message,
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup(keyboard)
-        
-  try:
-    await query.edit_message_text("Processing deposit...")
-except Exception as e:
-    logger.error(f"Error in deposit handler: {str(e)}")
-    await query.edit_message_text(
-        text=f"{THEME['error']} An error occurred. Please try again.",
-        reply_markup=back_button()
-    )
+   logger = logging.getLogger(__name__)
+THEME = {"error": "❌"}
 
+def back_button():
+    from telegram import InlineKeyboardMarkup, InlineKeyboardButton
+    return InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="back")]])
+
+async def some_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+
+    try:
+        # Some code that might fail
+        await query.edit_message_text("Processing deposit...")
+    except Exception as e:
+        logger.error(f"Error in deposit handler: {str(e)}")
+        await query.edit_message_text(
+            text=f"{THEME['error']} An error occurred. Please try again.",
+            reply_markup=back_button()
+        )
 
 
 async def more_crypto_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
