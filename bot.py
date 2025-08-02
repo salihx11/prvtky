@@ -498,12 +498,16 @@ Select from our other supported cryptocurrencies:
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup(keyboard)
         
-    except Exception as e:
-        logger.error(f"Error in more_crypto_options: {str(e)}")
+   except Exception as e:
+    logger.error("Error in more_crypto_options:\n" + traceback.format_exc())
+    
+    try:
         await query.edit_message_text(
-            f"{THEME['error']} An error occurred. Please try again.",
+            f"{THEME.get('error', '⚠️')} An error occurred. Please try again.",
             reply_markup=back_button()
         )
+    except Exception as edit_err:
+        logger.error("Failed to edit message in error handler:\n" + traceback.format_exc())
 
 async def payment_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle the payment flow"""
