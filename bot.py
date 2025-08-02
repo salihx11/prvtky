@@ -171,7 +171,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ✅ Trusted by 100+ users worldwide
 ⚡ Fast processing within minutes
 
-📌 *How it works:*
+📌 How it works:
 1. Deposit funds $20 per verification
 2. Submit your details
 3. Get verified within minutes
