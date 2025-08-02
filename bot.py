@@ -582,7 +582,7 @@ Select from our other supported cryptocurrencies:
             message,
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup(keyboard)
-        
+        )
     except Exception as e:
         logger.error(f"Error in more_crypto_options: {str(e)}")
         await handle_error(update, context, e)
