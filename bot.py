@@ -592,6 +592,7 @@ Please complete your payment within 1 hour.
             text=message,
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup(keyboard)
+        )
         
     except Exception as e:
         logger.error(f"Error in payment flow: {str(e)}")
