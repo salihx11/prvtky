@@ -822,7 +822,6 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(order_handler, pattern='^order$'))
     
     # Add error handler
-    application.add_error_handler(error_handler)
     
     logger.info("Starting bot...")
     application.run_polling(
