@@ -428,7 +428,7 @@ async def addbalance(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ===== PAYMENT HANDLERS =====
 async def deposit_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle deposit requests"""
+    """Handle deposit requests with perfectly aligned buttons"""
     try:
         query = update.callback_query
         await query.answer()
@@ -443,21 +443,22 @@ async def deposit_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 Choose your preferred payment method:
         """
         
+        # Perfectly aligned 2x3 grid for main currencies
         keyboard = [
             [
-                InlineKeyboardButton("USDT (TRC20)", callback_data="pay_usdt"),
-                InlineKeyboardButton("USDC", callback_data="pay_usdc"),
-                InlineKeyboardButton("DAI", callback_data="pay_dai")
-            ],
-            [
                 InlineKeyboardButton("Bitcoin", callback_data="pay_btc"),
-                InlineKeyboardButton("Ethereum", callback_data="pay_eth"),
-                InlineKeyboardButton("XRP", callback_data="pay_xrp")
+                InlineKeyboardButton("Ethereum", callback_data="pay_eth")
             ],
             [
-                InlineKeyboardButton("More Options", callback_data="more_crypto_options")
+                InlineKeyboardButton("USDT (TRC20)", callback_data="pay_usdt"),
+                InlineKeyboardButton("USDC", callback_data="pay_usdc")
             ],
             [
+                InlineKeyboardButton("XRP", callback_data="pay_xrp"),
+                InlineKeyboardButton("Toncoin", callback_data="pay_ton")
+            ],
+            [
+                InlineKeyboardButton("More Options ➡️", callback_data="more_crypto_options"),
                 InlineKeyboardButton(f"{THEME['back']} Back", callback_data='back')
             ]
         ]
@@ -476,7 +477,7 @@ Choose your preferred payment method:
         )
 
 async def more_crypto_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show additional cryptocurrency options"""
+    """Show additional cryptocurrency options with perfect button alignment"""
     try:
         query = update.callback_query
         await query.answer()
@@ -487,22 +488,23 @@ async def more_crypto_options(update: Update, context: ContextTypes.DEFAULT_TYPE
 Select from our other supported cryptocurrencies:
         """
         
+        # Perfect 2x3 grid for additional options
         keyboard = [
             [
                 InlineKeyboardButton("Solana", callback_data="pay_sol"),
-                InlineKeyboardButton("Toncoin", callback_data="pay_ton")
+                InlineKeyboardButton("TRON", callback_data="pay_trx")
             ],
             [
-                InlineKeyboardButton("TRON", callback_data="pay_trx"),
-                InlineKeyboardButton("Monero", callback_data="pay_xmr")
-            ],
-            [
-                InlineKeyboardButton("Dash", callback_data="pay_dash"),
+                InlineKeyboardButton("Monero", callback_data="pay_xmr"),
                 InlineKeyboardButton("Litecoin", callback_data="pay_ltc")
             ],
             [
-                InlineKeyboardButton("Bitcoin Cash", callback_data="pay_bch"),
-                InlineKeyboardButton(f"{THEME['back']} Back", callback_data="deposit")
+                InlineKeyboardButton("Dash", callback_data="pay_dash"),
+                InlineKeyboardButton("Bitcoin Cash", callback_data="pay_bch")
+            ],
+            [
+                InlineKeyboardButton("⬅️ Back to Main", callback_data="deposit"),
+                InlineKeyboardButton(f"{THEME['back']} Main Menu", callback_data="back")
             ]
         ]
         
@@ -520,7 +522,7 @@ Select from our other supported cryptocurrencies:
         )
 
 async def payment_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle the payment flow"""
+    """Handle the payment flow with perfect button layout"""
     try:
         query = update.callback_query
         await query.answer()
@@ -590,7 +592,6 @@ Please complete your payment within 1 hour.
             text=message,
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup(keyboard)
-        )
         
     except Exception as e:
         logger.error(f"Error in payment flow: {str(e)}")
