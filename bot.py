@@ -9,18 +9,6 @@ from telegram import (
     InputMediaPhoto
 )
 from telegram.ext import (
-    ApplicationBuilder,import logging
-)
-import requests
-import datetime
-import asyncio
-from telegram import (
-    InlineKeyboardButton, 
-    InlineKeyboardMarkup, 
-    Update,
-    InputMediaPhoto
-)
-from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
     CallbackQueryHandler,
@@ -28,6 +16,7 @@ from telegram.ext import (
     MessageHandler,
     filters
 )
+
 
 # ===== CONFIGURATION =====
 BOT_TOKEN = '7939176482:AAEWQkAtjqTJ2JY5YRRN9XsUS8AWy3kKoJI'
