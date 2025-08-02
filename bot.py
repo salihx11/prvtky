@@ -24,8 +24,10 @@ NOWPAYMENTS_API_KEY = 'BJMQ1ZZ-K8JMX4G-GY0EP0N-V210854'
 KYC_PRICE = 20
 WEBAPP_URL = "https://coinspark.pro/kyc/index.php"
 VOUCH_CHANNEL_ID = -1002871277227
-MAX_PAYMENT_CHECKS = 3  # Maximum number of times a user can check payment status
-CHECK_COOLDOWN = 600    # 10 minutes in seconds
+MAX_PAYMENT_CHECKS = 6  # Maximum payment check attempts
+CHECK_INTERVAL = 120  # 2 minutes between payment checks
+PAYMENT_EXPIRY = 3600  # 1 hour payment expiry time
+SUPPORT_CHAT_ID = "@YourSupportBot"  # Your support bot username
 LOGO_URL = "https://ibb.co/rRzxDkJG"  # Your bot logo URL
 
 # ===== PAYMENT CONFIGURATION =====
@@ -43,14 +45,6 @@ SUPPORTED_CRYPTOS = {
     'ltc': {'name': 'Litecoin', 'min_amount': 0.1, 'fee': 0.01},
     'bch': {'name': 'Bitcoin Cash', 'min_amount': 0.01, 'fee': 0.001},
     'xrp': {'name': 'Ripple', 'min_amount': 20, 'fee': 1}
-}
-
-# Group cryptocurrencies by type for better UI
-CRYPTO_GROUPS = {
-    'Stablecoins': ['usdt', 'usdc', 'dai'],
-    'Major Cryptos': ['btc', 'eth', 'xrp'],
-    'Privacy Coins': ['xmr', 'dash'],
-    'Popular Alts': ['sol', 'ton', 'trx', 'ltc', 'bch']
 }
 
 # ===== THEME & UI =====
@@ -72,21 +66,13 @@ THEME = {
     "pending": "🔄"
 }
 
-# ===== LOGGING SETUP =====
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
-
 # ===== GLOBAL STATE =====
-# In production, replace with database
 user_balances = {}
 payment_history = {}
 pending_orders = {}
 active_chats = {}
 broadcast_messages = []
-payment_timers = {}  # Track payment expiry times
+payment_timers = {}
 vouches = {}
 
 # ===== UTILITY FUNCTIONS =====
@@ -107,12 +93,6 @@ def admin_only(func):
 def back_button():
     """Helper function to create a back button"""
     return InlineKeyboardMarkup([[InlineKeyboardButton(f"{THEME['back']} Back", callback_data="back")]])
-
-def format_amount(amount: float, currency: str) -> str:
-    """Format currency amounts appropriately"""
-    if currency.lower() in ['usdt', 'usdc', 'dai']:
-        return f"${amount:.2f}"
-    return f"{amount:.6f}"
 
 async def send_photo_with_caption(context, chat_id, photo_url, caption, reply_markup=None):
     """Helper to send photo with caption"""
@@ -135,12 +115,8 @@ async def send_photo_with_caption(context, chat_id, photo_url, caption, reply_ma
 
 # ===== PAYMENT FUNCTIONS =====
 async def create_payment_invoice(user_id: int, crypto_code: str) -> tuple:
-    """
-    Create a payment invoice with NowPayments API
-    Returns (invoice_data, error_message) tuple
-    """
+    """Create a payment invoice with NowPayments API"""
     try:
-        # Validate crypto code
         crypto_code = crypto_code.lower()
         if crypto_code not in SUPPORTED_CRYPTOS:
             return None, f"{THEME['error']} Unsupported Currency\n\nThis cryptocurrency is not currently supported."
@@ -190,10 +166,7 @@ async def create_payment_invoice(user_id: int, crypto_code: str) -> tuple:
         return None, f"{THEME['error']} System Error\n\nAn unexpected error occurred. Our team has been notified."
 
 async def check_payment_status(payment_id: str) -> tuple:
-    """
-    Check payment status with NowPayments API
-    Returns (is_paid: bool, payment_data: dict)
-    """
+    """Check payment status with NowPayments API"""
     try:
         url = f"https://api.nowpayments.io/v1/payment/{payment_id}"
         headers = {"x-api-key": NOWPAYMENTS_API_KEY}
@@ -206,15 +179,13 @@ async def check_payment_status(payment_id: str) -> tuple:
         data = response.json()
         logger.info(f"Payment check response: {data}")
         
-        # Check multiple indicators of successful payment
         status = data.get("payment_status", "").lower()
         if status in ['finished', 'confirmed', 'completed', 'paid']:
             return True, data
             
-        # Check if actually paid meets the required amount
         pay_amount = float(data.get("pay_amount", 0))
         actually_paid = float(data.get("actually_paid", 0))
-        if actually_paid >= pay_amount * 0.95:  # Allow 5% variance
+        if actually_paid >= pay_amount * 0.95:
             return True, data
             
         return False, data
@@ -232,7 +203,6 @@ async def start_payment_timer(user_id: int, payment_id: str, context: ContextTyp
         'last_check': datetime.datetime.now()
     }
     
-    # Initial check after 1 minute
     await asyncio.sleep(60)
     await _check_payment_periodically(payment_id, context)
 
@@ -244,12 +214,10 @@ async def _check_payment_periodically(payment_id: str, context: ContextTypes.DEF
     timer = payment_timers[payment_id]
     user_id = timer['user_id']
     
-    # Check if payment has expired
     if (datetime.datetime.now() - timer['start_time']).seconds > PAYMENT_EXPIRY:
         logger.info(f"Payment {payment_id} expired")
         del payment_timers[payment_id]
         
-        # Update payment history
         if payment_id in payment_history:
             payment_history[payment_id]['status'] = 'expired'
             
@@ -264,24 +232,18 @@ async def _check_payment_periodically(payment_id: str, context: ContextTypes.DEF
             logger.error(f"Could not notify user {user_id} of expired payment: {str(e)}")
         return
     
-    # Check if maximum attempts reached
     if timer['attempts'] >= MAX_PAYMENT_CHECKS:
         logger.info(f"Max payment checks reached for {payment_id}")
         del payment_timers[payment_id]
         return
     
-    # Perform the actual check
     is_paid, payment_data = await check_payment_status(payment_id)
     
     if is_paid:
-        # Payment successful
         del payment_timers[payment_id]
-        
-        # Update user balance
         user_balances[user_id] = user_balances.get(user_id, 0) + KYC_PRICE
         payment_history[payment_id]['status'] = 'completed'
         
-        # Send success notification
         try:
             await send_photo_with_caption(
                 context,
@@ -300,7 +262,6 @@ async def _check_payment_periodically(payment_id: str, context: ContextTypes.DEF
         except Exception as e:
             logger.error(f"Could not notify user {user_id} of successful payment: {str(e)}")
     else:
-        # Schedule next check
         timer['attempts'] += 1
         timer['last_check'] = datetime.datetime.now()
         await asyncio.sleep(CHECK_INTERVAL)
@@ -313,7 +274,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user = update.effective_user
         user_id = user.id
         
-        # Handle payment success callback
         if update.message and update.message.text.startswith('/start success_'):
             user_id = int(update.message.text.split('_')[1])
             user_balances[user_id] = user_balances.get(user_id, 0) + KYC_PRICE
@@ -343,7 +303,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
         
-        # Welcome message with logo
         welcome_message = f"""
 {THEME['shield']} *Welcome to Fragment KYC Verification* {THEME['shield']}
 
@@ -383,7 +342,10 @@ Support: @YourSupportBot
     
     except Exception as e:
         logger.error(f"Error in start handler: {str(e)}")
-        await handle_error(update, context, e)
+        await update.message.reply_text(
+            f"{THEME['error']} An error occurred. Please try again.",
+            reply_markup=back_button()
+        )
 
 @admin_only
 async def addbalance(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -446,11 +408,14 @@ async def addbalance(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     except Exception as e:
         logger.error(f"Error in addbalance: {str(e)}")
-        await handle_error(update, context, e)
+        await update.message.reply_text(
+            f"{THEME['error']} An error occurred. Please check your input.",
+            reply_markup=back_button()
+        )
 
 # ===== PAYMENT HANDLERS =====
 async def deposit_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle deposit requests with multiple crypto options"""
+    """Handle deposit requests"""
     try:
         query = update.callback_query
         await query.answer()
@@ -465,53 +430,24 @@ async def deposit_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 Choose your preferred payment method:
         """
         
-        # Create buttons for each crypto group
-        keyboard = []
-        
-        # Add stablecoins first as they're most relevant for fixed price
-        keyboard.append([
-            InlineKeyboardButton(
-                f"{SUPPORTED_CRYPTOS['usdt']['name']}",
-                callback_data=f"pay_usdt"
-            ),
-            InlineKeyboardButton(
-                f"{SUPPORTED_CRYPTOS['usdc']['name']}",
-                callback_data=f"pay_usdc"
-            ),
-            InlineKeyboardButton(
-                f"{SUPPORTED_CRYPTOS['dai']['name']}",
-                callback_data=f"pay_dai"
-            )
-        ])
-        
-        # Add major cryptocurrencies
-        keyboard.append([
-            InlineKeyboardButton(
-                f"{SUPPORTED_CRYPTOS['btc']['name']}",
-                callback_data=f"pay_btc"
-            ),
-            InlineKeyboardButton(
-                f"{SUPPORTED_CRYPTOS['eth']['name']}",
-                callback_data=f"pay_eth"
-            ),
-            InlineKeyboardButton(
-                f"{SUPPORTED_CRYPTOS['xrp']['name']}",
-                callback_data=f"pay_xrp"
-            )
-        ])
-        
-        # Add more options button
-        keyboard.append([
-            InlineKeyboardButton(
-                f"{THEME['crypto']} More Options",
-                callback_data="more_crypto_options"
-            )
-        ])
-        
-        # Add back button
-        keyboard.append([
-            InlineKeyboardButton(f"{THEME['back']} Back", callback_data='back')
-        ])
+        keyboard = [
+            [
+                InlineKeyboardButton("USDT (TRC20)", callback_data="pay_usdt"),
+                InlineKeyboardButton("USDC", callback_data="pay_usdc"),
+                InlineKeyboardButton("DAI", callback_data="pay_dai")
+            ],
+            [
+                InlineKeyboardButton("Bitcoin", callback_data="pay_btc"),
+                InlineKeyboardButton("Ethereum", callback_data="pay_eth"),
+                InlineKeyboardButton("XRP", callback_data="pay_xrp")
+            ],
+            [
+                InlineKeyboardButton("More Options", callback_data="more_crypto_options")
+            ],
+            [
+                InlineKeyboardButton(f"{THEME['back']} Back", callback_data='back')
+            ]
+        ]
         
         await query.edit_message_text(
             message,
@@ -521,7 +457,10 @@ Choose your preferred payment method:
         
     except Exception as e:
         logger.error(f"Error in deposit handler: {str(e)}")
-        await handle_error(update, context, e)
+        await query.edit_message_text(
+            f"{THEME['error']} An error occurred. Please try again.",
+            reply_markup=back_button()
+        )
 
 async def more_crypto_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show additional cryptocurrency options"""
@@ -537,44 +476,20 @@ Select from our other supported cryptocurrencies:
         
         keyboard = [
             [
-                InlineKeyboardButton(
-                    f"{SUPPORTED_CRYPTOS['sol']['name']}",
-                    callback_data=f"pay_sol"
-                ),
-                InlineKeyboardButton(
-                    f"{SUPPORTED_CRYPTOS['ton']['name']}",
-                    callback_data=f"pay_ton"
-                )
+                InlineKeyboardButton("Solana", callback_data="pay_sol"),
+                InlineKeyboardButton("Toncoin", callback_data="pay_ton")
             ],
             [
-                InlineKeyboardButton(
-                    f"{SUPPORTED_CRYPTOS['trx']['name']}",
-                    callback_data=f"pay_trx"
-                ),
-                InlineKeyboardButton(
-                    f"{SUPPORTED_CRYPTOS['xmr']['name']}",
-                    callback_data=f"pay_xmr"
-                )
+                InlineKeyboardButton("TRON", callback_data="pay_trx"),
+                InlineKeyboardButton("Monero", callback_data="pay_xmr")
             ],
             [
-                InlineKeyboardButton(
-                    f"{SUPPORTED_CRYPTOS['dash']['name']}",
-                    callback_data=f"pay_dash"
-                ),
-                InlineKeyboardButton(
-                    f"{SUPPORTED_CRYPTOS['ltc']['name']}",
-                    callback_data=f"pay_ltc"
-                )
+                InlineKeyboardButton("Dash", callback_data="pay_dash"),
+                InlineKeyboardButton("Litecoin", callback_data="pay_ltc")
             ],
             [
-                InlineKeyboardButton(
-                    f"{SUPPORTED_CRYPTOS['bch']['name']}",
-                    callback_data=f"pay_bch"
-                ),
-                InlineKeyboardButton(
-                    f"{THEME['back']} Back to Main",
-                    callback_data="deposit"
-                )
+                InlineKeyboardButton("Bitcoin Cash", callback_data="pay_bch"),
+                InlineKeyboardButton(f"{THEME['back']} Back", callback_data="deposit")
             ]
         ]
         
@@ -582,13 +497,16 @@ Select from our other supported cryptocurrencies:
             message,
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+        
     except Exception as e:
         logger.error(f"Error in more_crypto_options: {str(e)}")
-        await handle_error(update, context, e)
+        await query.edit_message_text(
+            f"{THEME['error']} An error occurred. Please try again.",
+            reply_markup=back_button()
+        )
 
 async def payment_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle the payment flow for selected cryptocurrency"""
+    """Handle the payment flow"""
     try:
         query = update.callback_query
         await query.answer()
@@ -596,7 +514,6 @@ async def payment_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = query.from_user.id
         crypto_code = query.data.split('_')[1].lower()
         
-        # Validate crypto code
         if crypto_code not in SUPPORTED_CRYPTOS:
             await query.edit_message_text(
                 f"{THEME['error']} Unsupported Currency\n\n"
@@ -608,13 +525,11 @@ async def payment_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
         crypto_name = SUPPORTED_CRYPTOS[crypto_code]['name']
         crypto_fee = SUPPORTED_CRYPTOS[crypto_code]['fee']
         
-        # Show loading message
         await query.edit_message_text(
             f"{THEME['time']} Creating {crypto_name} payment invoice...",
             reply_markup=None
         )
         
-        # Create payment invoice
         invoice_data, error_msg = await create_payment_invoice(user_id, crypto_code)
         
         if error_msg:
@@ -628,7 +543,6 @@ async def payment_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
         invoice_url = invoice_data['invoice_url']
         expiry_time = (datetime.datetime.now() + datetime.timedelta(seconds=PAYMENT_EXPIRY)).strftime('%H:%M:%S UTC')
         
-        # Record payment in history
         payment_history[payment_id] = {
             'user_id': user_id,
             'amount': KYC_PRICE,
@@ -639,10 +553,8 @@ async def payment_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'expiry': expiry_time
         }
         
-        # Start payment timer
         asyncio.create_task(start_payment_timer(user_id, payment_id, context))
         
-        # Show payment instructions
         message = f"""
 {THEME['money']} *{crypto_name} Payment Instructions* {THEME['money']}
 
@@ -664,14 +576,16 @@ Please complete your payment within 1 hour.
             message,
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup(keyboard)
-        )
         
     except Exception as e:
         logger.error(f"Error in payment flow: {str(e)}")
-        await handle_error(update, context, e)
+        await query.edit_message_text(
+            f"{THEME['error']} An error occurred. Please try again.",
+            reply_markup=back_button()
+        )
 
 async def payment_status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle manual payment status checks"""
+    """Handle payment status checks"""
     try:
         query = update.callback_query
         await query.answer()
@@ -682,7 +596,6 @@ async def payment_status_handler(update: Update, context: ContextTypes.DEFAULT_T
             await query.answer("Payment not found. It may have expired.", show_alert=True)
             return
             
-        # Show checking message
         await query.edit_message_text(
             f"{THEME['time']} Checking payment status...",
             reply_markup=None
@@ -691,12 +604,10 @@ async def payment_status_handler(update: Update, context: ContextTypes.DEFAULT_T
         is_paid, payment_data = await check_payment_status(payment_id)
         
         if is_paid:
-            # Payment successful
             user_id = payment_history[payment_id]['user_id']
             user_balances[user_id] = user_balances.get(user_id, 0) + KYC_PRICE
             payment_history[payment_id]['status'] = 'completed'
             
-            # Remove timer if exists
             if payment_id in payment_timers:
                 del payment_timers[payment_id]
             
@@ -715,7 +626,6 @@ async def payment_status_handler(update: Update, context: ContextTypes.DEFAULT_T
                 ])
             )
         else:
-            # Payment still pending
             expiry_time = payment_history[payment_id].get('expiry', 'N/A')
             
             await query.edit_message_text(
@@ -732,7 +642,10 @@ async def payment_status_handler(update: Update, context: ContextTypes.DEFAULT_T
             
     except Exception as e:
         logger.error(f"Error in payment status handler: {str(e)}")
-        await handle_error(update, context, e)
+        await query.edit_message_text(
+            f"{THEME['error']} An error occurred. Please try again.",
+            reply_markup=back_button()
+        )
 
 # ===== ORDER HANDLERS =====
 async def order_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -767,7 +680,6 @@ async def order_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 ])
             )
             
-            # Notify admin
             admin_message = f"""
 ⚠️ *New KYC Order*
 
@@ -798,15 +710,26 @@ async def order_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
     except Exception as e:
         logger.error(f"Error in order handler: {str(e)}")
-        await handle_error(update, context, e)
+        await query.edit_message_text(
+            f"{THEME['error']} An error occurred. Please try again.",
+            reply_markup=back_button()
+        )
 
 # ===== MAIN APPLICATION =====
+async def post_init(application):
+    """Run after bot initialization"""
+    logger.info("Bot initialization complete")
+
+async def post_stop(application):
+    """Run before bot shutdown"""
+    logger.info("Bot shutdown complete")
+
 def main() -> None:
     """Start the bot"""
     application = ApplicationBuilder() \
         .token(BOT_TOKEN) \
-        .post_init(lambda app: logger.info("Bot initialization complete")) \
-        .post_stop(lambda app: logger.info("Bot shutdown complete")) \
+        .post_init(post_init) \
+        .post_stop(post_stop) \
         .build()
 
     # Add command handlers
@@ -820,8 +743,6 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(payment_flow, pattern='^pay_'))
     application.add_handler(CallbackQueryHandler(payment_status_handler, pattern='^check_'))
     application.add_handler(CallbackQueryHandler(order_handler, pattern='^order$'))
-    
-    # Add error handler
     
     logger.info("Starting bot...")
     application.run_polling(
