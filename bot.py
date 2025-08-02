@@ -165,20 +165,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("📜 History", callback_data='history')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    text = """ *Welcome to Fragment KYC Verification* 
+    text = """ 🟦 Welcome to Fragment KYC Verification
 
-🔐 *Secure & Affordable KYC Service*
+🔐 Secure & Affordable KYC Service
 ✅ Trusted by 100+ users worldwide
 ⚡ Fast processing within minutes
 
 📌 *How it works:*
-1. Deposit funds (${KYC_PRICE} per verification)
-2. Submit your details securely
+1. Deposit funds $20 per verification
+2. Submit your details
 3. Get verified within minutes
 
-📢 *Community:*
-Reviews: [View Testimonials](https://t.me/YourReviewsChannel)
-Support: @YourSupportBot"""
+📢 Community:
+Reviews: https://t.me/+EYOLheOcBCZkYWNh
+Support: @fragmentkysupportbot """
     if update.message:
         await update.message.reply_text(text, reply_markup=reply_markup)
     elif update.callback_query:
