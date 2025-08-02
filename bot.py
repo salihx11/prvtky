@@ -70,8 +70,7 @@ def init_db():
         tx_hash TEXT,
         timestamp TEXT,
         FOREIGN KEY(user_id) REFERENCES users(user_id)
-    )
-    ''')  # Added missing closing parenthesis
+    ''')
     
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS orders (
@@ -568,21 +567,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
         elif query.data.startswith("pay_"):
-            coin = query.data.split("_")[1].lower()
-            invoice_data, error_msg = await create_invoice(user_id, coin)
-            
-            if error_msg:
-                await query.edit_message_text(
-                    f"❌ *Payment Error*\n\n{error_msg}",
-                    reply_markup=back_button(),
-                    parse_mode='Markdown'
-                )
-                return
+            try:
+                coin = query.data.split("_")[1].lower()
+                invoice_data, error_msg = await create_invoice(user_id, coin)
                 
-            payment_id = invoice_data.get('id')
-            create_payment(user_id, payment_id, KYC_PRICE, coin, 'pending', invoice_data['invoice_url'])
-            
-            payment_message = f"""
+                if error_msg:
+                    await query.edit_message_text(
+                        f"❌ *Payment Error*\n\n{error_msg}",
+                        reply_markup=back_button(),
+                        parse_mode='Markdown'
+                    )
+                    return
+                    
+                payment_id = invoice_data.get('id')
+                create_payment(user_id, payment_id, KYC_PRICE, coin, 'pending', invoice_data['invoice_url'])
+                
+                payment_message = f"""
 💳 *{coin.upper()} Payment Invoice*
 
 🔹 Amount Due: *${KYC_PRICE} USD*
@@ -595,128 +595,158 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 3. Return here to verify payment status
 
 ⚠️ Payments typically process within 10-15 minutes."""
-            
-            await query.edit_message_text(
-                payment_message,
-                parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("💳 Pay Now", url=invoice_data['invoice_url'])],
-                    [InlineKeyboardButton("🔄 Check Payment Status", callback_data=f'check_{payment_id}')],
-                    [InlineKeyboardButton("🔙 Back to Deposit", callback_data='deposit')]
-                ])
-            )
-
-        elif query.data.startswith("check_"):
-            payment_id = query.data.split("_")[1]
-            is_paid, payment_data = await check_payment_status(payment_id)
-            
-            if is_paid:
-                # Update payment status
-                update_payment(payment_id, 'completed', payment_data.get('payin_hash'))
-                
-                # Update user balance
-                user_data = get_user(user_id)
-                new_balance = (user_data[2] if user_data else 0) + KYC_PRICE
-                update_user(user_id, balance=new_balance)
                 
                 await query.edit_message_text(
-                    f"✅ *Payment Confirmed!*\n\n"
-                    f"🔹 Amount: *${KYC_PRICE}*\n"
-                    f"🔹 Transaction: `{payment_data.get('payin_hash', 'N/A')}`\n"
-                    f"🔹 New Balance: *${new_balance:.2f}*",
+                    payment_message,
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([
-                        [InlineKeyboardButton("🛒 Order KYC", callback_data='order')],
-                        [InlineKeyboardButton("📜 History", callback_data='history')],
-                        [InlineKeyboardButton("🔙 Back", callback_data='back')]
+                        [InlineKeyboardButton("💳 Pay Now", url=invoice_data['invoice_url'])],
+                        [InlineKeyboardButton("🔄 Check Payment Status", callback_data=f'check_{payment_id}')],
+                        [InlineKeyboardButton("🔙 Back to Deposit", callback_data='deposit')]
                     ])
                 )
-            else:
+            except Exception as e:
+                logger.error(f"Error in payment creation: {str(e)}")
                 await query.edit_message_text(
-                    "⌛ *Payment Still Processing*\n\n"
-                    "Your payment hasn't been confirmed yet. Please try again in a few minutes.",
+                    "❌ Failed to create payment invoice. Please try again.",
+                    reply_markup=back_button()
+                )
+
+        elif query.data.startswith("check_"):
+            try:
+                payment_id = query.data.split("_")[1]
+                is_paid, payment_data = await check_payment_status(payment_id)
+                
+                if is_paid:
+                    # Update payment status
+                    update_payment(payment_id, 'completed', payment_data.get('payin_hash'))
+                    
+                    # Update user balance
+                    user_data = get_user(user_id)
+                    new_balance = (user_data[2] if user_data else 0) + KYC_PRICE
+                    update_user(user_id, balance=new_balance)
+                    
+                    await query.edit_message_text(
+                        f"✅ *Payment Confirmed!*\n\n"
+                        f"🔹 Amount: *${KYC_PRICE}*\n"
+                        f"🔹 Transaction: `{payment_data.get('payin_hash', 'N/A')}`\n"
+                        f"🔹 New Balance: *${new_balance:.2f}*",
+                        parse_mode='Markdown',
+                        reply_markup=InlineKeyboardMarkup([
+                            [InlineKeyboardButton("🛒 Order KYC", callback_data='order')],
+                            [InlineKeyboardButton("📜 History", callback_data='history')],
+                            [InlineKeyboardButton("🔙 Back", callback_data='back')]
+                        ])
+                    )
+                else:
+                    await query.edit_message_text(
+                        "⌛ *Payment Still Processing*\n\n"
+                        "Your payment hasn't been confirmed yet. Please try again in a few minutes.",
+                        reply_markup=InlineKeyboardMarkup([
+                            [InlineKeyboardButton("🔄 Check Again", callback_data=f'check_{payment_id}')],
+                            [InlineKeyboardButton("🔙 Back", callback_data='deposit')]
+                        ]),
+                        parse_mode='Markdown'
+                    )
+            except Exception as e:
+                logger.error(f"Error in payment check: {str(e)}")
+                await query.edit_message_text(
+                    "❌ Failed to check payment status. Please try again later.",
                     reply_markup=InlineKeyboardMarkup([
-                        [InlineKeyboardButton("🔄 Check Again", callback_data=f'check_{payment_id}')],
+                        [InlineKeyboardButton("🔄 Try Again", callback_data=f'check_{payment_id}')],
                         [InlineKeyboardButton("🔙 Back", callback_data='deposit')]
-                    ]),
-                    parse_mode='Markdown'
+                    ])
                 )
 
         elif query.data == "order":
-            user_data = get_user(user_id)
-            balance = user_data[2] if user_data else 0
-            
-            if balance >= KYC_PRICE:
-                # Deduct balance and create order
-                update_user(user_id, balance=balance - KYC_PRICE)
-                order_id = create_order(user_id)
+            try:
+                user_data = get_user(user_id)
+                balance = user_data[2] if user_data else 0
                 
+                if balance >= KYC_PRICE:
+                    # Deduct balance and create order
+                    update_user(user_id, balance=balance - KYC_PRICE)
+                    order_id = create_order(user_id)
+                    
+                    await query.edit_message_text(
+                        f"✅ *KYC Order Placed!*\n\n"
+                        f"🔹 Order ID: `{order_id}`\n"
+                        f"🔹 Price: *${KYC_PRICE}*\n"
+                        f"🔹 New Balance: *${balance - KYC_PRICE:.2f}*\n\n"
+                        "Please provide your details to complete the verification process.",
+                        parse_mode='Markdown',
+                        reply_markup=InlineKeyboardMarkup([
+                            [InlineKeyboardButton("💬 Submit Details", callback_data='submit_details')],
+                            [InlineKeyboardButton("🔙 Back", callback_data='back')]
+                        ])
+                    )
+                    
+                    # Notify admin
+                    await context.bot.send_message(
+                        chat_id=ADMIN_ID,
+                        text=f"🆕 New KYC Order\n👤 User: @{username}\n🆔 ID: {user_id}\n🔹 Order ID: {order_id}",
+                        reply_markup=InlineKeyboardMarkup([
+                            [InlineKeyboardButton("💬 Chat", callback_data=f"chat_{user_id}")],
+                            [InlineKeyboardButton("✅ Complete", callback_data=f"complete_{order_id}")]
+                        ])
+                    )
+                else:
+                    await query.edit_message_text(
+                        "❌ *Insufficient Balance*\n\n"
+                        f"You need *${KYC_PRICE}* to place a KYC order.\n"
+                        f"Current balance: *${balance:.2f}*",
+                        parse_mode='Markdown',
+                        reply_markup=InlineKeyboardMarkup([
+                            [InlineKeyboardButton("💵 Deposit Funds", callback_data='deposit')],
+                            [InlineKeyboardButton("🔙 Back", callback_data='back')]
+                        ])
+                    )
+            except Exception as e:
+                logger.error(f"Error in order placement: {str(e)}")
                 await query.edit_message_text(
-                    f"✅ *KYC Order Placed!*\n\n"
-                    f"🔹 Order ID: `{order_id}`\n"
-                    f"🔹 Price: *${KYC_PRICE}*\n"
-                    f"🔹 New Balance: *${balance - KYC_PRICE:.2f}*\n\n"
-                    "Please provide your details to complete the verification process.",
-                    parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([
-                        [InlineKeyboardButton("💬 Submit Details", callback_data='submit_details')],
-                        [InlineKeyboardButton("🔙 Back", callback_data='back')]
-                    ])
-                )
-                
-                # Notify admin
-                await context.bot.send_message(
-                    chat_id=ADMIN_ID,
-                    text=f"🆕 New KYC Order\n👤 User: @{username}\n🆔 ID: {user_id}\n🔹 Order ID: {order_id}",
-                    reply_markup=InlineKeyboardMarkup([
-                        [InlineKeyboardButton("💬 Chat", callback_data=f"chat_{user_id}")],
-                        [InlineKeyboardButton("✅ Complete", callback_data=f"complete_{order_id}")]
-                    ])
-                )
-            else:
-                await query.edit_message_text(
-                    "❌ *Insufficient Balance*\n\n"
-                    f"You need *${KYC_PRICE}* to place a KYC order.\n"
-                    f"Current balance: *${balance:.2f}*",
-                    parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup([
-                        [InlineKeyboardButton("💵 Deposit Funds", callback_data='deposit')],
-                        [InlineKeyboardButton("🔙 Back", callback_data='back')]
-                    ])
+                    "❌ Failed to place order. Please try again.",
+                    reply_markup=back_button()
                 )
 
         elif query.data == "history":
-            payments = get_user_payments(user_id)
-            orders = get_user_orders(user_id)
-            
-            history_text = "📜 *Your Transaction History*\n\n"
-            
-            if payments:
-                history_text += "💳 *Payments:*\n"
-                for payment in payments[:5]:  # Show last 5 payments
-                    history_text += (
-                        f"• {payment[7][:10]} - "
-                        f"${payment[2]} {payment[3].upper()} - "
-                        f"{payment[4].capitalize()}\n"
-                    )
-            
-            if orders:
-                history_text += "\n📦 *Orders:*\n"
-                for order in orders[:3]:  # Show last 3 orders
-                    history_text += (
-                        f"• #{order[0]} - "
-                        f"{order[2].capitalize()} - "
-                        f"{order[3][:10]}\n"
-                    )
-            
-            if not payments and not orders:
-                history_text += "No transaction history found."
-            
-            await query.edit_message_text(
-                history_text,
-                reply_markup=back_button(),
-                parse_mode='Markdown'
-            )
+            try:
+                payments = get_user_payments(user_id)
+                orders = get_user_orders(user_id)
+                
+                history_text = "📜 *Your Transaction History*\n\n"
+                
+                if payments:
+                    history_text += "💳 *Payments:*\n"
+                    for payment in payments[:5]:  # Show last 5 payments
+                        history_text += (
+                            f"• {payment[7][:10]} - "
+                            f"${payment[2]} {payment[3].upper()} - "
+                            f"{payment[4].capitalize()}\n"
+                        )
+                
+                if orders:
+                    history_text += "\n📦 *Orders:*\n"
+                    for order in orders[:3]:  # Show last 3 orders
+                        history_text += (
+                            f"• #{order[0]} - "
+                            f"{order[2].capitalize()} - "
+                            f"{order[3][:10]}\n"
+                        )
+                
+                if not payments and not orders:
+                    history_text += "No transaction history found."
+                
+                await query.edit_message_text(
+                    history_text,
+                    reply_markup=back_button(),
+                    parse_mode='Markdown'
+                )
+            except Exception as e:
+                logger.error(f"Error fetching history: {str(e)}")
+                await query.edit_message_text(
+                    "❌ Failed to load transaction history. Please try again later.",
+                    reply_markup=back_button()
+                )
 
         elif query.data == "admin_panel":
             await admin_panel(update, context)
@@ -730,25 +760,43 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif query.data == "back":
             await start(update, context)
 
+        else:
+            await query.edit_message_text(
+                "⚠️ Unknown command. Please use the menu buttons.",
+                reply_markup=back_button()
+            )
+
     except Exception as e:
-        logger.error(f"Error in button handler: {str(e)}")
-        await query.edit_message_text(
-            "❌ An unexpected error occurred. Our team has been notified.",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🆘 Contact Support", callback_data='support')],
-                [InlineKeyboardButton("🔙 Back", callback_data='back')]
-            ])
-        )
+        logger.error(f"Error in button handler: {str(e)}", exc_info=True)
+        try:
+            await query.edit_message_text(
+                "❌ An unexpected error occurred. Please try again.",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🆘 Contact Support", callback_data='support')],
+                    [InlineKeyboardButton("🔙 Back", callback_data='back')]
+                ])
+            )
+        except Exception as fallback_error:
+            logger.error(f"Fallback error handling failed: {str(fallback_error)}")
+            # Try sending a new message if edit fails
+            await context.bot.send_message(
+                chat_id=user_id,
+                text="❌ An error occurred. Please try your request again.",
+                reply_markup=back_button()
+            )
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Log errors and send a message to the user."""
     logger.error("Exception while handling an update:", exc_info=context.error)
     
     if update and update.effective_message:
-        await update.effective_message.reply_text(
-            "❌ An unexpected error occurred. Please try again later.",
-            reply_markup=back_button()
-        )
+        try:
+            await update.effective_message.reply_text(
+                "❌ An unexpected error occurred. Please try again later.",
+                reply_markup=back_button()
+            )
+        except Exception as e:
+            logger.error(f"Failed to send error message: {str(e)}")
 
 # ========== MAIN APPLICATION ==========
 def main() -> None:
